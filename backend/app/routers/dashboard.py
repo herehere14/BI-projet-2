@@ -6,7 +6,8 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
 import logging
 
-from app.core.database import get_db, Kpi, News, Company
+from app.core.database import get_db
+from app.models import Kpi, News, Company
 from app.services.ai import ask_ai_sync, get_task_status
 from app.utils.broadcaster import manager, redis_task
 

@@ -6,7 +6,8 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.core.celery_app import celery_app
-from app.core.database import get_engine, Kpi  # assumes Kpi model
+from app.core.database import get_engine
+from app.models import Kpi 
 from app.services.snowflake_connector import query_kpis  # your own helper
 
 
