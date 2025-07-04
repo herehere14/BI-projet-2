@@ -58,8 +58,10 @@ async def register(body: UserCreate, db: AsyncSession = Depends(get_db)):
     # 1️⃣  make sure the e-mail isn't already taken
     exists_stmt = select(User.id).where(User.email == body.email)
     if await db.scalar(exists_stmt):
-        raise HTTPException(status_code=400, detail="Account already exists")
-
+        raise HTTPException(
+            status_code=400,
+            detail="this email is already exist, please sign in",
+        )
     # 2️⃣  insert the user
     user = User(
         id=uuid4(),
