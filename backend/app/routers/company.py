@@ -1,8 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status
++7
+-5
+
+from fastapi import APIRouter, Depends
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.core.database import get_db
-from backend.models.company import Company
-from backend.models.dto_company import CompanyCreate, CompanyOut
+from ..core.database import get_db
+from ..models.company import Company
+from ..models.dto_company import CompanyCreate, CompanyOut
+from .auth import current_user_id
 from uuid import UUID
 
 router = APIRouter(prefix="/company", tags=["company"])
@@ -13,7 +18,7 @@ async def upsert_company(
     user_id: UUID = Depends(current_user_id),      # write your own auth dep
     db: AsyncSession = Depends(get_db),
 ):
-    company = await db.get(Company, {"owner_id": user_id})
+    company = await db.scalar(select(Company).where(Company.owner_id == user_id))
     if not company:
         company = Company(owner_id=user_id, **payload.model_dump())
         db.add(company)
