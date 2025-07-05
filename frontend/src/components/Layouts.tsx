@@ -7,11 +7,11 @@ interface LayoutsProps {
 }
 
 const Layouts: React.FC<LayoutsProps> = ({ children }) => {
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for saved theme preference or default to dark
+    // Check for saved theme preference or default to light
     const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null;
     if (savedTheme) {
       setTheme(savedTheme);

@@ -13,38 +13,10 @@ import EfficiencyGauge from "../components/dashboard/EfficiencyGauge";
 import MarketIntel from "../components/dashboard/MarketIntel";
 import NewsTicker from "../components/dashboard/NewsTicker";
 import SearchBar from "../components/SearchBar";
+import { useDashboardData } from "../hooks/useDashboardData";
+import { useAIAnalysis } from "../hooks/useAIAnalysis";
 
-/* ────────────────────────────────────────────────────────────
-   Mock data for demo
-   ───────────────────────────────────────────────────────── */
-const mockDashboardData = {
-  metrics: [
-    { id: "revenue", label: "REVENUE", value: "$3.2M", change: 12.5, changeType: "percentage" as const, trend: "up" as const, sparkline: [40, 45, 42, 48, 52, 58, 55, 60], unit: "", status: "good" as const, subtitle: "vs LM" },
-    { id: "customers", label: "CUSTOMERS", value: "8,421", change: 234, changeType: "absolute" as const, trend: "up" as const, sparkline: [30, 32, 35, 33, 38, 40, 42, 45], unit: "", subtitle: "NEW" },
-    { id: "nps", label: "NPS SCORE", value: "72", change: 3, changeType: "absolute" as const, trend: "up" as const, sparkline: [65, 68, 67, 70, 69, 71, 70, 72], unit: "", status: "good" as const, subtitle: "+3 pts" },
-    { id: "margin", label: "MARGIN", value: "34.2", change: -1.2, changeType: "percentage" as const, trend: "down" as const, sparkline: [38, 37, 36, 35, 35, 34, 34, 34], unit: "%", status: "warning" as const, subtitle: "DECLINING" },
-  ],
-  alerts: [
-    {
-      id: "1",
-      title: "Revenue Spike Detected",
-      description: "Perth store showing 340% increase in sustainable product sales",
-      severity: "info" as const,
-      timestamp: new Date().toISOString(),
-      metrics: [{ label: "IMPACT", value: "+$47K" }, { label: "CONFIDENCE", value: "94%" }],
-      actions: [{ id: "1", label: "🎯 AUTO-MARKETING", type: "marketing", style: "primary" as const, automated: true }]
-    },
-    {
-      id: "2",
-      title: "Supply Chain Alert",
-      description: "Shipping delays expected via Malacca Strait affecting 23 SKUs",
-      severity: "warning" as const,
-      timestamp: new Date().toISOString(),
-      metrics: [{ label: "AT RISK", value: "$156K" }, { label: "ETA DELAY", value: "5-7 days" }],
-      actions: [{ id: "2", label: "🚚 AUTO-LOGISTICS", type: "logistics", style: "warning" as const, automated: true }]
-    }
-  ]
-};
+
 
 /* ────────────────────────────────────────────────────────────
    Dashboard Page
@@ -54,7 +26,8 @@ const Dashboard: React.FC = () => {
   const [activeView, setActiveView] = useState<"overview" | "analysis" | "automation">("overview");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [dashboardData] = useState(mockDashboardData);
+  const { data: dashboardData, isLoading } = useDashboardData();
+  const { data: aiData } = useAIAnalysis("latest business insights");
 
   // Simulated real-time updates
   useEffect(() => {
@@ -70,7 +43,8 @@ const Dashboard: React.FC = () => {
   }, [isFullscreen]);
 
   const handleAlertAction = (action: string, alertId: string) => {
-    const alert = dashboardData.alerts.find((a) => a.id === alertId);
+    const alert = dashboardData?.alerts.find((a) => a.id === alertId);
+
     if (!alert) return;
 
     switch (action) {
@@ -143,7 +117,8 @@ const Dashboard: React.FC = () => {
 
         {/* Metrics bar */}
         <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
-          <MetricsBar metrics={dashboardData.metrics} />
+        <MetricsBar metrics={dashboardData?.metrics || []} isLoading={isLoading} />
+
         </div>
 
         {/* Main content area */}
@@ -167,7 +142,8 @@ const Dashboard: React.FC = () => {
                     transition={{ delay: 0.1 }}
                   >
                     <div className="h-[600px] bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-                      <AlertStream alerts={dashboardData.alerts} onAction={handleAlertAction} />
+                    <AlertStream alerts={dashboardData?.alerts || []} onAction={handleAlertAction} />
+
                     </div>
                   </motion.div>
 
@@ -188,7 +164,8 @@ const Dashboard: React.FC = () => {
                           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                         </div>
                       </div>
-                      <ForecastChart />
+                      <ForecastChart data={aiData?.forecast} />
+
                     </motion.div>
 
                     <motion.div
