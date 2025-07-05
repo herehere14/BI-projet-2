@@ -8,6 +8,7 @@ import logging
 
 from app.core.database import get_db
 from app.models import Kpi, News, Company
+from app.models.dto import KPITile
 from app.services.ai import ask_ai_sync, get_task_status
 from app.utils.broadcaster import manager, redis_task
 
@@ -15,6 +16,39 @@ from app.utils.broadcaster import manager, redis_task
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+
+
+@router.get("/", response_model=List[KPITile])
+def dashboard_summary(company_id: int = Query(..., description="Company ID"), db: Session = Depends(get_db)):
+    """Return latest KPI snapshot in a simple format."""
+    subq = (
+        db.query(Kpi.metric, func.max(Kpi.as_of).label("latest"))
+        .filter(Kpi.company_id == company_id)
+        .group_by(Kpi.metric)
+        .subquery()
+    )
+
+    rows = (
+        db.query(Kpi)
+        .join(subq, (Kpi.metric == subq.c.metric) & (Kpi.as_of == subq.c.latest))
+        .all()
+    )
+
+    tiles = []
+    for r in rows:
+        prev = (
+            db.query(Kpi)
+            .filter(Kpi.company_id == company_id, Kpi.metric == r.metric, Kpi.as_of < r.as_of)
+            .order_by(Kpi.as_of.desc())
+            .first()
+        )
+        delta = 0.0
+        if prev and prev.value:
+            delta = ((r.value - prev.value) / prev.value) * 100
+        tiles.append({"label": r.metric, "value": r.value, "delta_pct": round(delta, 2)})
+
+    return tiles
 
 # ─────────── REST endpoints ───────────
 

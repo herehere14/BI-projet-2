@@ -22,6 +22,7 @@ class Alert(BaseModel):
 # -- Ask-AI (interactive) ---------------------------------------------------#
 class AskAIRequest(BaseModel):
     query: str
+    company_id: int | None = None
 
 
 class ForecastBand(BaseModel):

@@ -26,9 +26,10 @@ const Dashboard: React.FC = () => {
   const [activeView, setActiveView] = useState<"overview" | "analysis" | "automation">("overview");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { data: dashboardData, isLoading } = useDashboardData();
-  const { data: aiData } = useAIAnalysis("latest business insights");
-
+  const companyId = 1;
+  const { data: dashboardData, isLoading } = useDashboardData(companyId);
+  const { data: aiData } = useAIAnalysis(companyId, "latest business insights");
+  
   // Simulated real-time updates
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {

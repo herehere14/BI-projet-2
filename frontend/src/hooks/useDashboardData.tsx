@@ -11,13 +11,13 @@ import {
   AlertAction   // Add this
 } from "../types";
 
-export const useDashboardData = () => {
+export const useDashboardData = (companyId = 1) => {
   const { data, isLoading, error } = useQuery({
-    queryKey: ["dashboard"],
+    queryKey: ["dashboard", companyId],
     queryFn: async (): Promise<DashboardData> => {
       try {
         const [dashboardResponse, alertsResponse] = await Promise.all([
-          fetchDashboard(),
+          fetchDashboard(companyId),
           fetchAlerts()
         ]);
 
@@ -55,38 +55,7 @@ export const useDashboardData = () => {
           metrics,
           alerts,
           marketData: [],
-          forecast: {
-            dates: Array.from({ length: 30 }, (_, i) => {
-              const date = new Date();
-              date.setDate(date.getDate() + i);
-              return date.toISOString();
-            }),
-            baseline: Array.from({ length: 30 }, () => 3000 + Math.random() * 500),
-            forecast: Array.from({ length: 30 }, () => 2800 + Math.random() * 500),
-            lower: Array.from({ length: 30 }, () => 2600 + Math.random() * 500),
-            upper: Array.from({ length: 30 }, () => 3000 + Math.random() * 500),
-          },
-          efficiency: 78,
-          insights: [
-            {
-              icon: "📈",
-              title: "Growth Opportunity",
-              description: "Perth sustainable gear market shows 340% search growth",
-              action: "Launch Campaign"
-            },
-            {
-              icon: "⚠️",
-              title: "Supply Risk",
-              description: "Shipping delays may impact Q3 inventory",
-              action: "Find Alternatives"
-            },
-            {
-              icon: "💡",
-              title: "Cost Optimization",
-              description: "Bundle strategy could protect margins by 2.3%",
-              action: "Implement Strategy"
-            }
-          ],
+
           lastUpdated: new Date().toISOString()
         };
 

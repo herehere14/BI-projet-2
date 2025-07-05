@@ -9,7 +9,7 @@ router = APIRouter(prefix="/ask-ai", tags=["ask-ai"])
 @router.post("/", response_model=AskAIResponse)
 async def ask_ai(req: AskAIRequest):
     try:
-        result = await ask_ai_query(req.query)
+        result = await ask_ai_query(req.query, req.company_id)
         return AskAIResponse(**result)
     except TimeoutError:
         raise HTTPException(status_code=504, detail="AI service timeout")

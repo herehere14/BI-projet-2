@@ -78,8 +78,8 @@ export const loginUser = async (body: {
  *  Dashboard + alerts
  * ------------------------------------------------------------------ */
 
-export const fetchDashboard = async (): Promise<KPITile[]> => {
-  const res = await fetch(`${API_BASE}/dashboard`, {
+export const fetchDashboard = async (companyId = 1): Promise<KPITile[]> => {
+  const res = await fetch(`${API_BASE}/dashboard?company_id=${companyId}`, {
     headers: authHeaders(),
   });
   if (!res.ok) throw new Error(await res.text());
@@ -120,6 +120,8 @@ export const fetchEfficiencyMetrics = async (): Promise<EfficiencyMetric[]> => {
 
 export const askAI = async (body: {
   query: string;
+  company_id?: number;
+
 }): Promise<AskAIResponse> => {
   const res = await fetch(`${API_BASE}/ask-ai`, {
     method: "POST",
@@ -131,7 +133,7 @@ export const askAI = async (body: {
 };
 
 export const fetchNews = async (): Promise<NewsItem[]> => {
-  const res = await fetch(`${API_BASE}/news`, {
+  const res = await fetch(`${API_BASE}/dashboard/news`, {
     headers: authHeaders(),
   });
   if (!res.ok) throw new Error(await res.text());

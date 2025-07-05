@@ -148,3 +148,88 @@ Please check back shortly for AI-powered insights."""
     
     # ── Publish so dashboards get it instantly ────────────
     publish_ai_answer(company_id, enhanced_answer)
+
+
+def generate_report(company_id: int) -> str:
+    """Run the KPI analysis synchronously and return the AI text."""
+    engine = get_engine()
+
+    with Session(engine) as sess:
+        company: Company = sess.query(Company).get(company_id)
+
+        recent_kpis = (
+            sess.query(Kpi)
+            .filter_by(company_id=company_id)
+            .order_by(Kpi.as_of.desc())
+            .limit(50)
+            .all()
+        )
+
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        historical_kpis = (
+            sess.query(Kpi)
+            .filter(
+                and_(Kpi.company_id == company_id, Kpi.as_of >= thirty_days_ago)
+            )
+            .order_by(Kpi.as_of.desc())
+            .all()
+        )
+
+    kpi_trends: Dict[str, List[Dict[str, Any]]] = {}
+    for kpi in historical_kpis:
+        kpi_trends.setdefault(kpi.metric, []).append(
+            {
+                "value": kpi.value,
+                "date": kpi.as_of.strftime("%Y-%m-%d") if hasattr(kpi.as_of, "strftime") else str(kpi.as_of),
+            }
+        )
+
+    recent_kpi_dict = {k.metric: k.value for k in recent_kpis[:20]}
+
+    trend_analysis = []
+    for metric, values in kpi_trends.items():
+        if len(values) >= 2:
+            recent_val = values[0]["value"]
+            older_val = values[-1]["value"]
+            if isinstance(recent_val, (int, float)) and isinstance(older_val, (int, float)) and older_val != 0:
+                change_pct = ((recent_val - older_val) / older_val) * 100
+                trend_analysis.append(f"{metric}: {change_pct:+.1f}% change over period")
+
+    system_prompt = (
+        "You are a senior business intelligence analyst with expertise in data-driven decision making."
+    )
+
+    user_prompt = f"""Company: {company.name}
+Industry: {getattr(company, 'industry', 'General Business')}
+Analysis Period: Last 30 days
+
+CURRENT KPI SNAPSHOT:
+{json.dumps(recent_kpi_dict, indent=2)}
+
+TREND ANALYSIS:
+{chr(10).join(trend_analysis[:10]) if trend_analysis else 'No trend data available'}
+
+Provide a short summary of the most important insights."""
+
+    try:
+        resp = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+            max_tokens=300,
+            temperature=0.7,
+        )
+
+        answer = resp.choices[0].message.content.strip()
+
+        enhanced_answer = (
+            f"📊 **AI Business Intelligence Report**\n\n{answer}\n\n"
+            f"*Based on analysis of {len(recent_kpis)} KPIs with {len(trend_analysis)} trending metrics*"
+        )
+    except Exception:
+        enhanced_answer = (
+            "AI analysis unavailable. "
+            + "Quick summary:\n"
+            + "\n".join(f"- {k}: {v}" for k, v in recent_kpi_dict.items())
+        )
+
+    return enhanced_answer

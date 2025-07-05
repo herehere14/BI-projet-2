@@ -128,27 +128,34 @@ def publish_ai_answer(company_id: int, answer: str, from_cache: bool = False) ->
         logger.error(f"Failed to publish AI answer for company {company_id}: {str(e)}")
         _update_task_completion(company_id, "failed", error_message=str(e))
 
-async def ask_ai_query(query: str) -> Dict[str, Any]:
-    """Directly query OpenAI for ad-hoc analysis."""
+async def ask_ai_query(query: str, company_id: int | None = None) -> Dict[str, Any]:
+    """Directly query OpenAI for ad-hoc or company-specific analysis."""
     try:
-        import openai
+        if company_id is not None:
+            from app.workers.internal_analyser import generate_report
 
-        if settings.OPENAI_API_KEY:
-            openai.api_key = settings.OPENAI_API_KEY
+            summary = generate_report(company_id)
 
-            resp = await openai.ChatCompletion.acreate(
-                model=settings.OPENAI_MODEL_4O,
-                messages=[
-                    {"role": "system", "content": "You are a helpful business analyst."},
-                    {"role": "user", "content": query},
-                ],
-                temperature=0.3,
-                max_tokens=300,
-            )
-            summary = resp.choices[0].message.content.strip()
         else:
-            summary = "OpenAI API key not configured." \
-                " Response is generated locally."
+            import openai
+
+            if settings.OPENAI_API_KEY:
+                openai.api_key = settings.OPENAI_API_KEY
+
+                resp = await openai.ChatCompletion.acreate(
+                    model=settings.OPENAI_MODEL_4O,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful business analyst."},
+                        {"role": "user", "content": query},
+                    ],
+                    temperature=0.3,
+                    max_tokens=300,
+                )
+                summary = resp.choices[0].message.content.strip()
+            else:
+                summary = "OpenAI API key not configured." \
+                    " Response is generated locally."
+                
     except Exception as exc:  # pragma: no cover - network failures etc.
         logger.error("ask_ai_query failed: %s", exc)
         summary = "AI service unavailable."
