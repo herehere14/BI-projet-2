@@ -1,23 +1,31 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Outlet, useLocation } from "react-router-dom";
 
 interface OnboardingLayoutProps {
-  children: React.ReactNode;
   currentStep?: number;
   totalSteps?: number;
   onBack?: () => void;
   onSkip?: () => void;
 }
 
-const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({ 
-  children, 
-  currentStep = 1,
+const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
+  currentStep,
   totalSteps = 3,
   onBack,
   onSkip
 }) => {
+  const location = useLocation();
+  const stepMap: Record<string, number> = {
+    "/onboarding": 1,
+    "/onboarding/data-sources": 2,
+    "/onboarding/data-sources/description": 3
+  };
+
+  const resolvedStep = currentStep ?? stepMap[location.pathname] ?? 1;
+
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const progress = (currentStep / totalSteps) * 100;
+  const progress = (resolvedStep / totalSteps) * 100;
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -97,15 +105,15 @@ const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
                   transition={{ delay: index * 0.1 }}
                   className={`
                     w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-all duration-300
-                    ${index + 1 === currentStep 
-                      ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30' 
-                      : index + 1 < currentStep
+                    ${index + 1 === resolvedStep
+                      ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30'
+                      : index + 1 < resolvedStep
                       ? 'bg-green-500 text-white'
                       : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
                     }
                   `}
                 >
-                  {index + 1 < currentStep ? (
+                  {index + 1 < resolvedStep ? (
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
@@ -130,7 +138,7 @@ const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
           >
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                Step {currentStep} of {totalSteps}
+                Step {resolvedStep} of {totalSteps}
               </p>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 {Math.round(progress)}% Complete
@@ -163,13 +171,13 @@ const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
           >
             <AnimatePresence mode="wait">
               <motion.div
-                key={currentStep}
+                key={resolvedStep}
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3 }}
               >
-                {children}
+                <Outlet />
               </motion.div>
             </AnimatePresence>
             
@@ -180,12 +188,12 @@ const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
             >
-              <button 
+              <button
                 onClick={onBack}
-                disabled={currentStep === 1}
+                disabled={resolvedStep === 1}
                 className={`
                   flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200
-                  ${currentStep === 1 
+                  ${resolvedStep === 1
                     ? 'text-slate-400 dark:text-slate-600 cursor-not-allowed' 
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                   }
@@ -197,7 +205,7 @@ const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
                 Back
               </button>
               
-              {currentStep < totalSteps && (
+              {resolvedStep < totalSteps && (
                 <button 
                   onClick={onSkip}
                   className="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors px-4 py-2"

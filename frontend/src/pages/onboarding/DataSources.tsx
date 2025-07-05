@@ -201,6 +201,7 @@ export default function DataSources() {
               ...state,
               data_sources: Array.from(selected),
               dsns,
+              snowflake_dsn: dsns.snowflake,
               uploaded_files: files
             }
           })

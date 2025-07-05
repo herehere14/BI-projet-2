@@ -1,5 +1,3 @@
-+7
--5
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select

@@ -29,7 +29,7 @@ from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 from .core.database import init_db, shutdown
 from .core.settings import settings
-from .routers import alerts, ask_ai, auth, dashboard
+from .routers import alerts, ask_ai, auth, dashboard, company, ingest_file
 
 # --------------------------------------------------------------------------- #
 # Logging
@@ -66,6 +66,8 @@ app.include_router(dashboard.router)
 app.include_router(alerts.router)
 app.include_router(ask_ai.router)
 app.include_router(auth.router)
+app.include_router(company.router)
+app.include_router(ingest_file.router)
 
 # --------------------------------------------------------------------------- #
 # Helper: safe WebSocket close

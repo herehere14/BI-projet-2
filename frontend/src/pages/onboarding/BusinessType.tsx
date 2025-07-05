@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 
-interface BusinessTypeProps {
-  onContinue?: (type: string) => void;
-}
+const BusinessType: React.FC = () => {
 
-const BusinessType: React.FC<BusinessTypeProps> = ({ onContinue }) => {
+
+  const nav = useNavigate();
+
   const [selectedType, setSelectedType] = useState("");
   const [hoveredType, setHoveredType] = useState<string | null>(null);
   
@@ -83,8 +84,8 @@ const BusinessType: React.FC<BusinessTypeProps> = ({ onContinue }) => {
   ];
 
   const handleContinue = () => {
-    if (selectedType && onContinue) {
-      onContinue(selectedType);
+    if (selectedType) {
+      nav("data-sources", { state: { biz_type: selectedType } });
     }
   };
 

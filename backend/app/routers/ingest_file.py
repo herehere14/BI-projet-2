@@ -3,6 +3,8 @@ import pandas as pd, io, json, datetime as dt
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.database import get_db
 from ..models.company import Company
+from .auth import current_user_id
+
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 @router.post("/file")
