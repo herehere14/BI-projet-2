@@ -1,5 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
+
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { AuthContext } from "../context/AuthProvider";
+import { loginUser } from "../hooks/api";
 
 interface LoginProps {
   onLogin?: (email: string, password: string) => void;
@@ -15,15 +19,20 @@ export default function Login({ onLogin, onSignupClick, onForgotPasswordClick }:
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
+  const { setToken } = useContext(AuthContext);
+  const navigate = useNavigate();
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setIsLoading(true);
     
+
     try {
-      // Simulate login
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const { access_token } = await loginUser({ email, password });
+      setToken(access_token);
       onLogin?.(email, password);
+      navigate("/");
     } catch (error) {
       setError("Invalid email or password");
     } finally {

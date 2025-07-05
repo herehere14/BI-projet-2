@@ -1,5 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { AuthContext } from "../context/AuthProvider";
+import { registerUser } from "../hooks/api";
 
 interface SignupProps {
   onSignup?: (data: { email: string; password: string; fullName: string; company: string }) => void;
@@ -20,6 +23,8 @@ const Signup: React.FC<SignupProps> = ({ onSignup, onLoginClick }) => {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const { setToken } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   const validateStep = (step: number): boolean => {
     const newErrors: Record<string, string> = {};
@@ -74,14 +79,20 @@ const Signup: React.FC<SignupProps> = ({ onSignup, onLoginClick }) => {
     
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const { access_token } = await registerUser({
+        email: formData.email,
+        password: formData.password,
+        full_name: formData.fullName
+      });
+      setToken(access_token);
       onSignup?.({
         email: formData.email,
         password: formData.password,
         fullName: formData.fullName,
         company: formData.company
       });
+      navigate("/onboarding");
+
     } catch (error) {
       setErrors({ submit: "An error occurred. Please try again." });
     } finally {
