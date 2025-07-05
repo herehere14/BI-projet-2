@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, status, Query, HTTPException
-from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import and_, func, select, or_
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
 import logging
@@ -10,7 +9,7 @@ from app.core.database import get_db
 from app.models import Kpi, News, Company
 from app.models.dto import KPITile
 from app.services.ai import ask_ai_sync, get_task_status
-from app.utils.broadcaster import manager, redis_task
+from app.utils.broadcaster import manager
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -20,29 +19,40 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 @router.get("/", response_model=List[KPITile])
-def dashboard_summary(company_id: int = Query(..., description="Company ID"), db: Session = Depends(get_db)):
+async def dashboard_summary(
+    company_id: int = Query(..., description="Company ID"),
+    db: AsyncSession = Depends(get_db),
+):
     """Return latest KPI snapshot in a simple format."""
+
     subq = (
-        db.query(Kpi.metric, func.max(Kpi.as_of).label("latest"))
-        .filter(Kpi.company_id == company_id)
+        select(Kpi.metric, func.max(Kpi.as_of).label("latest"))
+        .where(Kpi.company_id == company_id)
         .group_by(Kpi.metric)
         .subquery()
     )
 
-    rows = (
-        db.query(Kpi)
-        .join(subq, (Kpi.metric == subq.c.metric) & (Kpi.as_of == subq.c.latest))
-        .all()
+    result = await db.execute(
+        select(Kpi).join(
+            subq, (Kpi.metric == subq.c.metric) & (Kpi.as_of == subq.c.latest)
+        )
     )
+    rows = result.scalars().all()
 
     tiles = []
     for r in rows:
-        prev = (
-            db.query(Kpi)
-            .filter(Kpi.company_id == company_id, Kpi.metric == r.metric, Kpi.as_of < r.as_of)
+        prev_result = await db.execute(
+            select(Kpi)
+            .where(
+                Kpi.company_id == company_id,
+                Kpi.metric == r.metric,
+                Kpi.as_of < r.as_of,
+            )
             .order_by(Kpi.as_of.desc())
-            .first()
+            .limit(1)
         )
+        prev = prev_result.scalars().first()
+
         delta = 0.0
         if prev and prev.value:
             delta = ((r.value - prev.value) / prev.value) * 100
@@ -53,11 +63,11 @@ def dashboard_summary(company_id: int = Query(..., description="Company ID"), db
 # ─────────── REST endpoints ───────────
 
 @router.get("/kpis/latest")
-def latest_kpis(
+async def latest_kpis(
     company_id: int,
     limit: Optional[int] = Query(50, description="Maximum number of KPIs to return"),
     metrics: Optional[List[str]] = Query(None, description="Filter by specific metric names"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get latest KPI values for a company.
@@ -69,41 +79,42 @@ def latest_kpis(
     - Data validation
     """
     # Validate company exists
-    company = db.query(Company).filter_by(id=company_id).first()
+    company = await db.scalar(select(Company).where(Company.id == company_id))
     if not company:
         raise HTTPException(status_code=404, detail=f"Company {company_id} not found")
     
     # Build query
-    query = db.query(Kpi).filter_by(company_id=company_id)
+    stmt = select(Kpi).where(Kpi.company_id == company_id)
     
     # Apply metric filter if provided
     if metrics:
-        query = query.filter(Kpi.metric.in_(metrics))
+        stmt = stmt.where(Kpi.metric.in_(metrics))
     
     # Get latest KPIs
-    latest_kpis = (
-        query
-        .order_by(Kpi.as_of.desc())
-        .limit(limit)
-        .all()
+    result = await db.execute(
+        stmt.order_by(Kpi.as_of.desc()).limit(limit)
+
     )
+    latest_kpis = result.scalars().all()
+
     
     # Get previous values for change calculation
     kpi_data = []
     for kpi in latest_kpis:
         # Find previous value for this metric
-        previous = (
-            db.query(Kpi)
-            .filter(
+        prev_result = await db.execute(
+            select(Kpi)
+            .where(
                 and_(
                     Kpi.company_id == company_id,
                     Kpi.metric == kpi.metric,
-                    Kpi.as_of < kpi.as_of
+                    Kpi.as_of < kpi.as_of,
                 )
             )
             .order_by(Kpi.as_of.desc())
-            .first()
+            .limit(1)
         )
+        previous = prev_result.scalars().first()
         
         kpi_info = {
             "metric": kpi.metric,
@@ -133,10 +144,10 @@ def latest_kpis(
 
 
 @router.post("/ai/recommendation", status_code=status.HTTP_202_ACCEPTED)
-def ai_recommendation(
+async def ai_recommendation(
     company_id: int,
     force_refresh: bool = Query(False, description="Force new analysis even if recent one exists"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Request AI-powered business recommendations.
@@ -148,7 +159,7 @@ def ai_recommendation(
     - Rate limiting info
     """
     # Validate company exists
-    company = db.query(Company).filter_by(id=company_id).first()
+    company = await db.scalar(select(Company).where(Company.id == company_id))
     if not company:
         raise HTTPException(status_code=404, detail=f"Company {company_id} not found")
     
@@ -187,7 +198,7 @@ def ai_recommendation(
 
 
 @router.get("/ai/status/{company_id}")
-def get_ai_status(company_id: int, db: Session = Depends(get_db)):
+async def get_ai_status(company_id: int):
     """
     Check the status of an AI analysis task.
     
@@ -213,13 +224,13 @@ def get_ai_status(company_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/news")
-def latest_news(
+async def latest_news(
     limit: int = Query(20, ge=1, le=100, description="Number of news items to return"),
     source: Optional[str] = Query(None, description="Filter by news source"),
     hours: Optional[int] = Query(None, ge=1, le=168, description="Get news from last N hours"),
     search: Optional[str] = Query(None, description="Search in title and description"),
     impact_level: Optional[str] = Query(None, regex="^(critical|high|medium)$", description="Filter by impact level"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get latest business intelligence and news.
@@ -231,39 +242,42 @@ def latest_news(
     - Impact level filtering
     - Pagination support
     """
-    query = db.query(News)
+    stmt = select(News)
     
     # Apply filters
     if source:
-        query = query.filter(News.source == source)
+        stmt = stmt.where(News.source == source)
     
     if hours:
         cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
-        query = query.filter(News.published_at >= cutoff_time)
+        stmt = stmt.where(News.published_at >= cutoff_time)
     
     if search:
         search_pattern = f"%{search}%"
-        query = query.filter(
-            db.or_(
+        stmt = stmt.where(
+            or_(
                 News.title.ilike(search_pattern),
-                News.description.ilike(search_pattern)
+                News.description.ilike(search_pattern),
             )
         )
     
     if impact_level:
         # Filter by impact level in title (for AI-generated news)
         if impact_level == "critical":
-            query = query.filter(News.title.contains("[CRITICAL]"))
+            stmt = stmt.where(News.title.contains("[CRITICAL]"))
         elif impact_level == "high":
-            query = query.filter(News.title.contains("[HIGH]"))
+            stmt = stmt.where(News.title.contains("[HIGH]"))
         elif impact_level == "medium":
-            query = query.filter(News.title.contains("[MEDIUM]"))
+            stmt = stmt.where(News.title.contains("[MEDIUM]"))
     
-    # Get total count before limiting
-    total_count = query.count()
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total_count = await db.scalar(count_stmt)
     
     # Apply ordering and limit
-    news_items = query.order_by(News.published_at.desc()).limit(limit).all()
+    result = await db.execute(
+        stmt.order_by(News.published_at.desc()).limit(limit)
+    )
+    news_items = result.scalars().all()
     
     # Format response
     formatted_news = []
@@ -294,11 +308,8 @@ def latest_news(
         formatted_news.append(news_data)
     
     # Get news sources summary
-    sources_summary = (
-        db.query(News.source, func.count(News.id).label('count'))
-        .group_by(News.source)
-        .all()
-    )
+    sources_stmt = select(News.source, func.count(News.id).label("count")).group_by(News.source)
+    sources_summary = (await db.execute(sources_stmt)).all()
     
     return {
         "items": formatted_news,
@@ -311,7 +322,10 @@ def latest_news(
 
 
 @router.get("/stats")
-def get_dashboard_stats(company_id: Optional[int] = None, db: Session = Depends(get_db)):
+async def get_dashboard_stats(
+    company_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+):
     """
     Get dashboard statistics and system health.
     
@@ -326,8 +340,12 @@ def get_dashboard_stats(company_id: Optional[int] = None, db: Session = Depends(
     # Add company-specific stats if provided
     if company_id:
         # KPI statistics
-        kpi_count = db.query(func.count(Kpi.id)).filter_by(company_id=company_id).scalar()
-        latest_kpi = db.query(func.max(Kpi.as_of)).filter_by(company_id=company_id).scalar()
+        kpi_count = await db.scalar(
+            select(func.count(Kpi.id)).where(Kpi.company_id == company_id)
+        )
+        latest_kpi = await db.scalar(
+            select(func.max(Kpi.as_of)).where(Kpi.company_id == company_id)
+        )
         
         stats["database"]["company_stats"] = {
             "company_id": company_id,
@@ -336,12 +354,15 @@ def get_dashboard_stats(company_id: Optional[int] = None, db: Session = Depends(
         }
     
     # Global statistics
-    total_companies = db.query(func.count(Company.id)).scalar()
-    total_kpis = db.query(func.count(Kpi.id)).scalar()
-    total_news = db.query(func.count(News.id)).scalar()
-    recent_news = db.query(func.count(News.id)).filter(
-        News.published_at >= datetime.now(timezone.utc) - timedelta(hours=24)
-    ).scalar()
+
+    total_companies = await db.scalar(select(func.count(Company.id)))
+    total_kpis = await db.scalar(select(func.count(Kpi.id)))
+    total_news = await db.scalar(select(func.count(News.id)))
+    recent_news = await db.scalar(
+        select(func.count(News.id)).where(
+            News.published_at >= datetime.now(timezone.utc) - timedelta(hours=24)
+        )
+    )
     
     stats["database"]["global_stats"] = {
         "total_companies": total_companies,
