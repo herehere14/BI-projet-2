@@ -1,5 +1,5 @@
 /* ------------------------------------------------------------------ *
- *  API helper (REST + WebSocket) – includes JWT automatically
+ *  api.ts (REST + WebSocket) – includes JWT automatically
  * ------------------------------------------------------------------ */
 
 import type {
