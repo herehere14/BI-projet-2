@@ -11,9 +11,11 @@ import {
   AlertAction   // Add this
 } from "../types";
 
-export const useDashboardData = (companyId = 1) => {
+export const useDashboardData = (companyId?: string) => {
   const { data, isLoading, error } = useQuery({
     queryKey: ["dashboard", companyId],
+    enabled: !!companyId,
+
     queryFn: async (): Promise<DashboardData> => {
       try {
         const [dashboardResponse, alertsResponse] = await Promise.all([

@@ -1,5 +1,5 @@
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.database import get_db
@@ -9,6 +9,18 @@ from .auth import current_user_id
 from uuid import UUID
 
 router = APIRouter(prefix="/company", tags=["company"])
+
+@router.get("/", response_model=CompanyOut)
+async def get_company(
+    user_id: UUID = Depends(current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the current user's company"""
+    company = await db.scalar(select(Company).where(Company.owner_id == user_id))
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    return company
+
 
 @router.post("/", response_model=CompanyOut)
 async def upsert_company(

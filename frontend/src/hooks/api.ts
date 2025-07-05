@@ -9,6 +9,7 @@ import type {
   MarketData,
   EfficiencyMetric,
   NewsItem,
+  Company,
 } from "../types";
 
 /* ------------------------------------------------------------------ *
@@ -55,6 +56,19 @@ export const registerUser = async (body: {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 };
+
+/* ------------------------------------------------------------------ *
+ *  Company
+ * ------------------------------------------------------------------ */
+
+export const fetchDashboard = async (companyId: string): Promise<KPITile[]> => {
+  const res = await fetch(`${API_BASE}/company`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+};
+
 
 /** OAuth2 password-grant login – must be form-encoded */
 export const loginUser = async (body: {
@@ -120,7 +134,7 @@ export const fetchEfficiencyMetrics = async (): Promise<EfficiencyMetric[]> => {
 
 export const askAI = async (body: {
   query: string;
-  company_id?: number;
+  company_id?: string;
 
 }): Promise<AskAIResponse> => {
   const res = await fetch(`${API_BASE}/ask-ai`, {

@@ -15,6 +15,7 @@ import NewsTicker from "../components/dashboard/NewsTicker";
 import SearchBar from "../components/SearchBar";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { useAIAnalysis } from "../hooks/useAIAnalysis";
+import { fetchCompany } from "../hooks/api";
 
 
 
@@ -26,10 +27,18 @@ const Dashboard: React.FC = () => {
   const [activeView, setActiveView] = useState<"overview" | "analysis" | "automation">("overview");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const companyId = 1;
+  const [companyId, setCompanyId] = useState<string>();
+  
   const { data: dashboardData, isLoading } = useDashboardData(companyId);
   const { data: aiData } = useAIAnalysis(companyId, "latest business insights");
   
+  useEffect(() => {
+    fetchCompany()
+      .then((c) => setCompanyId(c.id))
+      .catch((err) => console.error("Failed to load company", err));
+  }, []);
+
+
   // Simulated real-time updates
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {

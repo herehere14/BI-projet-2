@@ -113,6 +113,18 @@ export interface AskAIResponse {
   recommendations?: any[];
 }
 
+
+/* ------------------------------------------------------------------ *
+ * Company
+ * ------------------------------------------------------------------ */
+
+export interface Company {
+  id: string;
+  biz_type: string;
+  description: string;
+  snowflake_dsn?: string | null;
+}
+
 /* ------------------------------------------------------------------ *
  * Market / News
  * ------------------------------------------------------------------ */
