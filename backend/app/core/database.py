@@ -89,14 +89,21 @@ async def init_db() -> None:
         # Ensure critical columns exist (handles older databases without migrations)
         from sqlalchemy import inspect, text
 
-        inspector = inspect(conn)
-        kpi_columns = [c["name"] for c in inspector.get_columns("kpi")]
-        if "metric" not in kpi_columns:
-            await conn.execute(text("ALTER TABLE kpi ADD COLUMN metric VARCHAR(100)"))
-        if "as_of" not in kpi_columns:
-            await conn.execute(
-                text("ALTER TABLE kpi ADD COLUMN as_of TIMESTAMP WITH TIME ZONE")
-            )
+        def _check_columns(sync_conn):
+            inspector = inspect(sync_conn)
+            kpi_columns = [c["name"] for c in inspector.get_columns("kpi")]
+            if "metric" not in kpi_columns:
+                sync_conn.execute(
+                    text("ALTER TABLE kpi ADD COLUMN metric VARCHAR(100)")
+                )
+            if "as_of" not in kpi_columns:
+                sync_conn.execute(
+                    text(
+                        "ALTER TABLE kpi ADD COLUMN as_of TIMESTAMP WITH TIME ZONE"
+                    )
+                )
+
+        await conn.run_sync(_check_columns)
 
 async def shutdown() -> None:
     """Dispose the engine and close all pools."""
