@@ -93,6 +93,10 @@ async def init_db() -> None:
         kpi_columns = [c["name"] for c in inspector.get_columns("kpi")]
         if "metric" not in kpi_columns:
             await conn.execute(text("ALTER TABLE kpi ADD COLUMN metric VARCHAR(100)"))
+        if "as_of" not in kpi_columns:
+            await conn.execute(
+                text("ALTER TABLE kpi ADD COLUMN as_of TIMESTAMP WITH TIME ZONE")
+            )
 
 async def shutdown() -> None:
     """Dispose the engine and close all pools."""
