@@ -9,10 +9,31 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from app.core.celery_app import celery_app
 from app.core.settings import settings
-from app.core.database import get_engine, Kpi, Company
+from app.core.database import get_engine, Kpi, Company, News
 from app.services.ai import publish_ai_answer
 
 openai.api_key = settings.OPENAI_API_KEY
+
+def _recent_news(sess: Session, hours: int = 48, limit: int = 5) -> List[str]:
+    """Return recent news headlines and summaries."""
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    rows = (
+        sess.query(News)
+        .filter(News.published_at >= cutoff)
+        .order_by(News.published_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    items = []
+    for n in rows:
+        summary = (n.description or "").strip()
+        if summary:
+            summary = summary.split("\n")[0][:150]
+        items.append(f"{n.title} - {summary}")
+
+    return items
+
 
 @celery_app.task(name="app.workers.internal_analyser.analyse")
 def analyse(company_id: int) -> None:
