@@ -3,10 +3,13 @@ Turns latest KPIs into plain-English insights via OpenAI.
 """
 import openai
 import json
+import uuid
+
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
+
 from app.core.celery_app import celery_app
 from app.core.settings import settings
 from app.core.database import get_engine, Kpi, Company, News
@@ -36,17 +39,19 @@ def _recent_news(sess: Session, hours: int = 48, limit: int = 5) -> List[str]:
 
 
 @celery_app.task(name="app.workers.internal_analyser.analyse")
-def analyse(company_id: int) -> None:
+def analyse(company_id: str) -> None:
     engine = get_engine()
     
     # ── Pull most-recent KPI snapshot and historical data ─────────────────────
+    company_uuid = uuid.UUID(company_id)
+
     with Session(engine) as sess:
-        company: Company = sess.query(Company).get(company_id)
+        company: Company = sess.query(Company).get(company_uuid)
         
         # Get recent KPIs
         recent_kpis = (
             sess.query(Kpi)
-            .filter_by(company_id=company_id)
+            .filter_by(company_id=company_uuid)
             .order_by(Kpi.as_of.desc())
             .limit(50)
             .all()
@@ -58,7 +63,7 @@ def analyse(company_id: int) -> None:
             sess.query(Kpi)
             .filter(
                 and_(
-                    Kpi.company_id == company_id,
+                    Kpi.company_id == company_uuid,
                     Kpi.as_of >= thirty_days_ago
                 )
             )
@@ -168,21 +173,33 @@ Recent KPIs:
 Please check back shortly for AI-powered insights."""
     
     # ── Publish so dashboards get it instantly ────────────
-    publish_ai_answer(company_id, enhanced_answer)
+    publish_ai_answer(company_uuid, enhanced_answer)
 
 
-def generate_report(company_id: int) -> str:
+def generate_report(company_id: str) -> str:
     """Run the KPI analysis synchronously and return the AI text."""
     engine = get_engine()
 
+    company_uuid = uuid.UUID(company_id)
+
     with Session(engine) as sess:
-        company: Company = sess.query(Company).get(company_id)
+        company: Company = sess.query(Company).get(company_uuid)
 
         recent_kpis = (
             sess.query(Kpi)
-            .filter_by(company_id=company_id)
+            .filter_by(company_id=company_uuid)
             .order_by(Kpi.as_of.desc())
             .limit(50)
+            .all()
+        )
+
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        historical_kpis = (
+            sess.query(Kpi)
+            .filter(
+                and_(Kpi.company_id == company_uuid, Kpi.as_of >= thirty_days_ago)
+            )
+            .order_by(Kpi.as_of.desc())
             .all()
         )
 

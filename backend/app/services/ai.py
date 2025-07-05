@@ -8,6 +8,8 @@ import logging
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, asdict
+from uuid import UUID
+
 
 from app.core.celery_app import celery_app
 from app.core.settings import settings
@@ -28,7 +30,7 @@ logger = logging.getLogger(__name__)
 class AITaskStatus:
     """Track AI analysis task status and metadata."""
     task_id: str
-    company_id: int
+    company_id: str
     status: str  # 'pending', 'processing', 'completed', 'failed'
     created_at: str
     updated_at: str
@@ -36,7 +38,7 @@ class AITaskStatus:
     retry_count: int = 0
 
 
-def ask_ai_sync(company_id: int) -> str:
+def ask_ai_sync(company_id: UUID) -> str:
     """
     Kick off analysis in the background and return the Celery task_id.
     
@@ -64,7 +66,7 @@ def ask_ai_sync(company_id: int) -> str:
         # Send task with enhanced metadata
         task = celery_app.send_task(
             "app.workers.internal_analyser.analyse",
-            args=[company_id],
+            args=[str(company_id)],
             queue="internal_ai",
             priority=_get_task_priority(company_id),  # Higher priority for premium customers
             expires=300,  # Task expires after 5 minutes if not started
@@ -84,7 +86,7 @@ def ask_ai_sync(company_id: int) -> str:
         return error_task_id
 
 
-def publish_ai_answer(company_id: int, answer: str, from_cache: bool = False) -> None:
+def publish_ai_answer(company_id: UUID, answer: str, from_cache: bool = False) -> None:
     """
     Called by the Celery worker once it has the OpenAI response.
     
@@ -97,7 +99,7 @@ def publish_ai_answer(company_id: int, answer: str, from_cache: bool = False) ->
     try:
         # Prepare enriched message
         message_data = {
-            "company_id": company_id,
+            "company_id": str(company_id),
             "answer": answer,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "from_cache": from_cache,
@@ -128,13 +130,13 @@ def publish_ai_answer(company_id: int, answer: str, from_cache: bool = False) ->
         logger.error(f"Failed to publish AI answer for company {company_id}: {str(e)}")
         _update_task_completion(company_id, "failed", error_message=str(e))
 
-async def ask_ai_query(query: str, company_id: int | None = None) -> Dict[str, Any]:
+async def ask_ai_query(query: str, company_id: UUID | None = None) -> Dict[str, Any]:
     """Directly query OpenAI for ad-hoc or company-specific analysis."""
     try:
         if company_id is not None:
             from app.workers.internal_analyser import generate_report
 
-            summary = generate_report(company_id)
+            summary = generate_report(str(company_id))
 
         else:
             import openai
@@ -212,7 +214,7 @@ async def ask_ai_query(query: str, company_id: int | None = None) -> Dict[str, A
 # Helper functions for enhanced functionality
 # ─────────────────────────────────────────────────────────────
 
-def _get_active_task(company_id: int) -> Optional[str]:
+def _get_cached_analysis(company_id: UUID, max_age_seconds: int = 300) -> Optional[str]:
     """Check if there's already an active task for this company."""
     status_key = f"{_TASK_STATUS_PREFIX}{company_id}"
     status_data = _redis.get(status_key)
@@ -251,13 +253,13 @@ def _get_cached_analysis(company_id: int, max_age_seconds: int = 300) -> Optiona
     return None
 
 
-def _cache_analysis(company_id: int, answer: str) -> None:
+def _cache_analysis(company_id: UUID, answer: str) -> None:
     """Cache the analysis result with timestamp."""
     cache_key = f"{_ANALYSIS_CACHE_PREFIX}{company_id}"
     cache_data = {
         "answer": answer,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "company_id": company_id
+        "company_id": str(company_id)
     }
     
     _redis.setex(
@@ -268,7 +270,7 @@ def _cache_analysis(company_id: int, answer: str) -> None:
 
 
 def _set_task_status(
-    company_id: int, 
+    company_id: UUID,
     task_id: str, 
     status: str,
     error_message: Optional[str] = None
@@ -279,7 +281,7 @@ def _set_task_status(
     
     task_status = AITaskStatus(
         task_id=task_id,
-        company_id=company_id,
+        company_id=str(company_id),
         status=status,
         created_at=now,
         updated_at=now,
@@ -294,7 +296,7 @@ def _set_task_status(
 
 
 def _update_task_completion(
-    company_id: int, 
+    company_id: UUID,
     status: str,
     error_message: Optional[str] = None
 ) -> None:
@@ -315,7 +317,7 @@ def _update_task_completion(
             pass
 
 
-def _get_task_priority(company_id: int) -> int:
+def _get_task_priority(company_id: UUID) -> int:
     """
     Determine task priority based on company tier or other factors.
     Higher number = higher priority (Celery convention).
@@ -329,7 +331,7 @@ def _get_task_priority(company_id: int) -> int:
 # Additional utility functions for monitoring and debugging
 # ─────────────────────────────────────────────────────────────
 
-def get_task_status(company_id: int) -> Optional[Dict[str, Any]]:
+def get_task_status(company_id: UUID) -> Optional[Dict[str, Any]]:
     """
     Get the current status of an AI analysis task.
     Useful for API endpoints to check task progress.

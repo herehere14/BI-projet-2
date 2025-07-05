@@ -19,10 +19,12 @@ class Alert(BaseModel):
     suggested_action: str | None = None
 
 
-# -- Ask-AI (interactive) ---------------------------------------------------#
+from uuid import UUID
+
+
 class AskAIRequest(BaseModel):
     query: str
-    company_id: int | None = None
+    company_id: UUID | None = None
 
 
 class ForecastBand(BaseModel):

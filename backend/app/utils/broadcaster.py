@@ -9,6 +9,8 @@ from typing import Dict, Set, Optional, Any
 from datetime import datetime, timezone
 from dataclasses import dataclass, asdict
 from collections import defaultdict
+from uuid import UUID
+
 
 import redis.asyncio as aioredis
 from fastapi import WebSocket, WebSocketDisconnect
@@ -37,7 +39,7 @@ class ClientInfo:
     connected_at: float
     last_ping: float
     last_pong: float
-    company_ids: Set[int]  # Companies this client is interested in
+    company_ids: Set[UUID]  # Companies this client is interested in
     message_count: int = 0
     error_count: int = 0
     client_id: Optional[str] = None
@@ -47,7 +49,7 @@ class ClientInfo:
 class ConnectionManager:
     def __init__(self) -> None:
         self.active: Dict[WebSocket, ClientInfo] = {}
-        self._company_subscribers: Dict[int, Set[WebSocket]] = defaultdict(set)
+        self._company_subscribers: Dict[UUID, Set[WebSocket]] = defaultdict(set)
         self._redis_task: Optional[asyncio.Task] = None
         self._heartbeat_task: Optional[asyncio.Task] = None
         self._stats = {
@@ -113,7 +115,7 @@ class ConnectionManager:
         
         self.active.pop(ws, None)
     
-    async def subscribe_to_company(self, ws: WebSocket, company_id: int) -> None:
+    async def subscribe_to_company(self, ws: WebSocket, company_id: UUID) -> None:
         """Subscribe a WebSocket to company-specific updates."""
         client_info = self.active.get(ws)
         if client_info:
@@ -122,13 +124,13 @@ class ConnectionManager:
             
             await self._send_to_client(ws, {
                 "type": "subscription",
-                "company_id": company_id,
+                "company_id": str(company_id),
                 "status": "subscribed"
             })
             
             logger.debug(f"Client subscribed to company {company_id}")
     
-    async def unsubscribe_from_company(self, ws: WebSocket, company_id: int) -> None:
+    async def unsubscribe_from_company(self, ws: WebSocket, company_id: UUID) -> None:
         """Unsubscribe a WebSocket from company-specific updates."""
         client_info = self.active.get(ws)
         if client_info and company_id in client_info.company_ids:
@@ -137,11 +139,11 @@ class ConnectionManager:
             
             await self._send_to_client(ws, {
                 "type": "subscription",
-                "company_id": company_id,
+                "company_id": str(company_id),
                 "status": "unsubscribed"
             })
     
-    async def broadcast(self, msg: str, company_id: Optional[int] = None) -> None:
+    async def broadcast(self, msg: str, company_id: Optional[UUID] = None) -> None:
         """
         Broadcast message to all connected clients or specific company subscribers.
         Enhanced with better error handling and targeted delivery.
@@ -151,7 +153,8 @@ class ConnectionManager:
         # Parse message to check for company-specific routing
         try:
             data = json.loads(msg)
-            target_company_id = company_id or data.get("company_id")
+            cid = data.get("company_id")
+            target_company_id = company_id or (UUID(cid) if cid else None)
         except json.JSONDecodeError:
             target_company_id = company_id
             data = {"raw_message": msg}
@@ -232,7 +235,7 @@ class ConnectionManager:
                         company_id = None
                         if ".company." in channel:
                             try:
-                                company_id = int(channel.split(".company.")[-1])
+                                company_id = UUID(channel.split(".company.")[-1])
                             except (ValueError, IndexError):
                                 pass
                         
@@ -312,12 +315,12 @@ class ConnectionManager:
             elif msg_type == "subscribe":
                 company_id = data.get("company_id")
                 if company_id:
-                    await self.subscribe_to_company(ws, int(company_id))
+                    await self.subscribe_to_company(ws, UUID(company_id))
             
             elif msg_type == "unsubscribe":
                 company_id = data.get("company_id")
                 if company_id:
-                    await self.unsubscribe_from_company(ws, int(company_id))
+                    await self.unsubscribe_from_company(ws, UUID(company_id))
             
             else:
                 logger.debug(f"Unknown message type: {msg_type}")
@@ -344,7 +347,7 @@ class ConnectionManager:
                     "connected_duration": time.time() - info.connected_at,
                     "message_count": info.message_count,
                     "error_count": info.error_count,
-                    "subscriptions": list(info.company_ids)
+                    "subscriptions": [str(cid) for cid in info.company_ids]
                 }
                 for info in self.active.values()
             ]

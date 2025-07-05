@@ -5,6 +5,8 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
 import logging
 
+from uuid import UUID
+
 from app.core.database import get_db
 from app.models import Kpi, News, Company
 from app.models.dto import KPITile
@@ -20,7 +22,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("/", response_model=List[KPITile])
 async def dashboard_summary(
-    company_id: int = Query(..., description="Company ID"),
+    company_id: UUID = Query(..., description="Company ID"),
     db: AsyncSession = Depends(get_db),
 ):
     """Return latest KPI snapshot in a simple format."""
@@ -64,7 +66,7 @@ async def dashboard_summary(
 
 @router.get("/kpis/latest")
 async def latest_kpis(
-    company_id: int,
+    company_id: UUID,
     limit: Optional[int] = Query(50, description="Maximum number of KPIs to return"),
     metrics: Optional[List[str]] = Query(None, description="Filter by specific metric names"),
     db: AsyncSession = Depends(get_db)
@@ -135,7 +137,7 @@ async def latest_kpis(
         kpi_data.append(kpi_info)
     
     return {
-        "company_id": company_id,
+        "company_id": str(company_id),
         "company_name": company.name,
         "kpi_count": len(kpi_data),
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -145,7 +147,7 @@ async def latest_kpis(
 
 @router.post("/ai/recommendation", status_code=status.HTTP_202_ACCEPTED)
 async def ai_recommendation(
-    company_id: int,
+    company_id: UUID,
     force_refresh: bool = Query(False, description="Force new analysis even if recent one exists"),
     db: AsyncSession = Depends(get_db),
 ):
@@ -190,7 +192,7 @@ async def ai_recommendation(
         "task_id": task_id,
         "status": "accepted",
         "message": "Analysis started successfully",
-        "company_id": company_id,
+        "company_id": str(company_id),
         "company_name": company.name,
         "estimated_completion": "15-30 seconds",
         "websocket_channel": f"/dashboard/ws"
@@ -198,7 +200,7 @@ async def ai_recommendation(
 
 
 @router.get("/ai/status/{company_id}")
-async def get_ai_status(company_id: int):
+async def get_ai_status(company_id: UUID):
     """
     Check the status of an AI analysis task.
     
@@ -208,13 +210,13 @@ async def get_ai_status(company_id: int):
     
     if not status_info:
         return {
-            "company_id": company_id,
+            "company_id": str(company_id),
             "status": "not_found",
             "message": "No active or recent analysis found"
         }
     
     return {
-        "company_id": company_id,
+        "company_id": str(company_id),
         "task_id": status_info.get("task_id"),
         "status": status_info.get("status"),
         "created_at": status_info.get("created_at"),
@@ -323,7 +325,7 @@ async def latest_news(
 
 @router.get("/stats")
 async def get_dashboard_stats(
-    company_id: Optional[int] = None,
+    company_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -348,7 +350,7 @@ async def get_dashboard_stats(
         )
         
         stats["database"]["company_stats"] = {
-            "company_id": company_id,
+            "company_id": str(company_id),
             "total_kpis": kpi_count,
             "latest_kpi_update": latest_kpi.isoformat() if latest_kpi and hasattr(latest_kpi, 'isoformat') else str(latest_kpi) if latest_kpi else None
         }
@@ -380,7 +382,7 @@ async def get_dashboard_stats(
 async def dashboard_ws(
     ws: WebSocket,
     client_id: Optional[str] = Query(None, description="Optional client identifier"),
-    company_id: Optional[int] = Query(None, description="Subscribe to specific company on connection")
+    company_id: Optional[UUID] = Query(None, description="Subscribe to specific company on connection")
 ):
     """
     WebSocket endpoint for real-time dashboard updates.
