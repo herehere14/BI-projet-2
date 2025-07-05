@@ -6,7 +6,7 @@ import json
 import redis
 import logging
 from typing import Optional, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, asdict
 
 from app.core.celery_app import celery_app
@@ -127,6 +127,78 @@ def publish_ai_answer(company_id: int, answer: str, from_cache: bool = False) ->
     except Exception as e:
         logger.error(f"Failed to publish AI answer for company {company_id}: {str(e)}")
         _update_task_completion(company_id, "failed", error_message=str(e))
+
+async def ask_ai_query(query: str) -> Dict[str, Any]:
+    """Directly query OpenAI for ad-hoc analysis."""
+    try:
+        import openai
+
+        if settings.OPENAI_API_KEY:
+            openai.api_key = settings.OPENAI_API_KEY
+
+            resp = await openai.ChatCompletion.acreate(
+                model=settings.OPENAI_MODEL_4O,
+                messages=[
+                    {"role": "system", "content": "You are a helpful business analyst."},
+                    {"role": "user", "content": query},
+                ],
+                temperature=0.3,
+                max_tokens=300,
+            )
+            summary = resp.choices[0].message.content.strip()
+        else:
+            summary = "OpenAI API key not configured." \
+                " Response is generated locally."
+    except Exception as exc:  # pragma: no cover - network failures etc.
+        logger.error("ask_ai_query failed: %s", exc)
+        summary = "AI service unavailable."
+
+    # Minimal demo forecast data
+    today = datetime.now(timezone.utc)
+    dates = [
+        (today + timedelta(days=i)).strftime("%Y-%m-%d")
+        for i in range(30)
+    ]
+    baseline = [1000 + i * 5 for i in range(30)]
+    forecast = [v * 1.02 for v in baseline]
+    lower = [v * 0.98 for v in baseline]
+    upper = [v * 1.06 for v in baseline]
+
+    actions = [
+        {
+            "title": "Improve Marketing", 
+            "subtitle": "Focus on new customer acquisition", 
+            "cost": 5000, 
+            "roi": 1.2, 
+            "cta": "Launch campaign"
+        },
+        {
+            "title": "Optimize Inventory", 
+            "subtitle": "Reduce slow-moving stock", 
+            "cost": 2000, 
+            "roi": 1.5, 
+            "cta": "Review SKUs"
+        },
+        {
+            "title": "Upsell Existing Clients", 
+            "subtitle": "Introduce premium tier", 
+            "cost": 1000, 
+            "roi": 1.8, 
+            "cta": "Create offer"
+        },
+    ]
+
+    return {
+        "impact_summary": summary,
+        "forecast": {
+            "dates": dates,
+            "baseline": baseline,
+            "forecast": forecast,
+            "lower": lower,
+            "upper": upper,
+        },
+        "actions": actions,
+    }
 
 
 # ─────────────────────────────────────────────────────────────
