@@ -86,6 +86,13 @@ async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+        # Ensure critical columns exist (handles older databases without migrations)
+        from sqlalchemy import inspect, text
+
+        inspector = inspect(conn)
+        kpi_columns = [c["name"] for c in inspector.get_columns("kpi")]
+        if "metric" not in kpi_columns:
+            await conn.execute(text("ALTER TABLE kpi ADD COLUMN metric VARCHAR(100)"))
 
 async def shutdown() -> None:
     """Dispose the engine and close all pools."""
