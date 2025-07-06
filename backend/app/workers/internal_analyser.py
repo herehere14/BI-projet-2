@@ -7,7 +7,7 @@ import uuid
 
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 from sqlalchemy import and_
 
 from app.core.celery_app import celery_app
@@ -51,6 +51,8 @@ def analyse(company_id: str) -> None:
         # Get recent KPIs
         recent_kpis = (
             sess.query(Kpi)
+            .options(load_only(Kpi.metric, Kpi.value, Kpi.as_of))
+            
             .filter_by(company_id=company_uuid)
             .order_by(Kpi.as_of.desc())
             .limit(50)
@@ -61,6 +63,8 @@ def analyse(company_id: str) -> None:
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
         historical_kpis = (
             sess.query(Kpi)
+            .options(load_only(Kpi.metric, Kpi.value, Kpi.as_of))
+
             .filter(
                 and_(
                     Kpi.company_id == company_uuid,
@@ -187,6 +191,8 @@ def generate_report(company_id: str) -> str:
 
         recent_kpis = (
             sess.query(Kpi)
+            .options(load_only(Kpi.metric, Kpi.value, Kpi.as_of))
+
             .filter_by(company_id=company_uuid)
             .order_by(Kpi.as_of.desc())
             .limit(50)
@@ -196,6 +202,9 @@ def generate_report(company_id: str) -> str:
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
         historical_kpis = (
             sess.query(Kpi)
+
+            .options(load_only(Kpi.metric, Kpi.value, Kpi.as_of))
+
             .filter(
                 and_(Kpi.company_id == company_uuid, Kpi.as_of >= thirty_days_ago)
             )
@@ -206,6 +215,8 @@ def generate_report(company_id: str) -> str:
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
         historical_kpis = (
             sess.query(Kpi)
+            .options(load_only(Kpi.metric, Kpi.value, Kpi.as_of))
+
             .filter(
                 and_(Kpi.company_id == company_id, Kpi.as_of >= thirty_days_ago)
             )

@@ -2,8 +2,9 @@
 Hourly ETL: pull fresh metrics from Snowflake (or another warehouse)
 and upsert into the local Postgres database.
 """
-from datetime import datetime, timezone
 from sqlalchemy.orm import Session
+from sqlalchemy import select, insert, update
+
 
 from app.core.celery_app import celery_app
 from app.core.database import get_engine
@@ -21,21 +22,27 @@ def run() -> int:
         rows = query_kpis()  # List[dict]
         inserted = 0
         for r in rows:
-            rec = (
-                session.query(Kpi)
-                .filter_by(company_id=r["company_id"], metric=r["metric"], as_of=r["as_of"])
-                .first()
-            )
-            if not rec:
-                rec = Kpi(
-                    company_id=r["company_id"],
-                    metric=r["metric"],
-                    as_of=r["as_of"],
+            existing_id = session.execute(
+                select(Kpi.id).filter_by(
+                    company_id=r["company_id"], metric=r["metric"], as_of=r["as_of"]
                 )
-                session.add(rec)
+            ).scalar_one_or_none()
 
-            rec.value = r["value"]
-            rec.updated_at = datetime.now(timezone.utc)
+            if existing_id:
+                session.execute(
+                    update(Kpi)
+                    .where(Kpi.id == existing_id)
+                    .values(value=r["value"])
+                )
+            else:
+                session.execute(
+                    insert(Kpi.__table__).values(
+                        company_id=r["company_id"],
+                        metric=r["metric"],
+                        value=r["value"],
+                        as_of=r["as_of"],
+                    )
+                )
             inserted += 1
 
         session.commit()

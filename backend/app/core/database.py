@@ -26,6 +26,7 @@ from sqlalchemy.orm import declarative_base
 from sqlalchemy.engine import Engine
 
 
+
 # ---------------------------------------------------------------------------
 # Engine configuration
 # ---------------------------------------------------------------------------
@@ -96,10 +97,7 @@ async def init_db() -> None:
                 sync_conn.execute(
                     text("ALTER TABLE kpi ADD COLUMN metric VARCHAR(100)")
                 )
-            if "target" not in kpi_columns:
-                sync_conn.execute(
-                    text("ALTER TABLE kpi ADD COLUMN target FLOAT")
-                )
+
             if "as_of" not in kpi_columns:
                 sync_conn.execute(
                     text(

@@ -4,7 +4,8 @@ from sqlalchemy import and_, func, select, or_
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
 import logging
-
+from sqlalchemy import inspect
+from sqlalchemy.orm import load_only
 from uuid import UUID
 
 from app.core.database import get_db
@@ -17,6 +18,17 @@ from app.utils.broadcaster import manager
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+async def _has_target_column(db: AsyncSession) -> bool:
+    """Return True if the KPI table has a ``target`` column."""
+
+    def check(sync_conn):
+        insp = inspect(sync_conn)
+        return "target" in [c["name"] for c in insp.get_columns("kpi")]
+
+    return await db.run_sync(check)
+
+
 
 
 
@@ -34,16 +46,29 @@ async def dashboard_summary(
         .subquery()
     )
 
-    result = await db.execute(
-        select(Kpi).join(
-            subq, (Kpi.metric == subq.c.metric) & (Kpi.as_of == subq.c.latest)
-        )
+    has_target = await _has_target_column(db)
+    stmt = select(Kpi).join(
+        subq, (Kpi.metric == subq.c.metric) & (Kpi.as_of == subq.c.latest)
     )
+    if not has_target:
+        stmt = stmt.options(
+            load_only(
+                Kpi.id,
+                Kpi.company_id,
+                Kpi.metric,
+                Kpi.value,
+                Kpi.as_of,
+                Kpi.type,
+                Kpi.unit,
+                Kpi.description,
+            )
+        )
+    result = await db.execute(stmt)
     rows = result.scalars().all()
 
     tiles = []
     for r in rows:
-        prev_result = await db.execute(
+        prev_stmt = (
             select(Kpi)
             .where(
                 Kpi.company_id == company_id,
@@ -53,6 +78,20 @@ async def dashboard_summary(
             .order_by(Kpi.as_of.desc())
             .limit(1)
         )
+        if not has_target:
+            prev_stmt = prev_stmt.options(
+                load_only(
+                    Kpi.id,
+                    Kpi.company_id,
+                    Kpi.metric,
+                    Kpi.value,
+                    Kpi.as_of,
+                    Kpi.type,
+                    Kpi.unit,
+                    Kpi.description,
+                )
+            )
+        prev_result = await db.execute(prev_stmt)
         prev = prev_result.scalars().first()
 
         delta = 0.0
@@ -85,9 +124,23 @@ async def latest_kpis(
     if not company:
         raise HTTPException(status_code=404, detail=f"Company {company_id} not found")
     
+    has_target = await _has_target_column(db)
+
     # Build query
     stmt = select(Kpi).where(Kpi.company_id == company_id)
-    
+    if not has_target:
+        stmt = stmt.options(
+            load_only(
+                Kpi.id,
+                Kpi.company_id,
+                Kpi.metric,
+                Kpi.value,
+                Kpi.as_of,
+                Kpi.type,
+                Kpi.unit,
+                Kpi.description,
+            )
+        )    
     # Apply metric filter if provided
     if metrics:
         stmt = stmt.where(Kpi.metric.in_(metrics))
@@ -104,7 +157,7 @@ async def latest_kpis(
     kpi_data = []
     for kpi in latest_kpis:
         # Find previous value for this metric
-        prev_result = await db.execute(
+        prev_stmt = (
             select(Kpi)
             .where(
                 and_(
@@ -116,6 +169,20 @@ async def latest_kpis(
             .order_by(Kpi.as_of.desc())
             .limit(1)
         )
+        if not has_target:
+            prev_stmt = prev_stmt.options(
+                load_only(
+                    Kpi.id,
+                    Kpi.company_id,
+                    Kpi.metric,
+                    Kpi.value,
+                    Kpi.as_of,
+                    Kpi.type,
+                    Kpi.unit,
+                    Kpi.description,
+                )
+            )
+        prev_result = await db.execute(prev_stmt)
         previous = prev_result.scalars().first()
         
         kpi_info = {
