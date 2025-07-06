@@ -214,7 +214,7 @@ async def ask_ai_query(query: str, company_id: UUID | None = None) -> Dict[str, 
 # Helper functions for enhanced functionality
 # ─────────────────────────────────────────────────────────────
 
-def _get_cached_analysis(company_id: UUID, max_age_seconds: int = 300) -> Optional[str]:
+def _get_active_task(company_id: UUID, max_age_seconds: int = 300) -> Optional[str]:
     """Check if there's already an active task for this company."""
     status_key = f"{_TASK_STATUS_PREFIX}{company_id}"
     status_data = _redis.get(status_key)
@@ -234,7 +234,7 @@ def _get_cached_analysis(company_id: UUID, max_age_seconds: int = 300) -> Option
     return None
 
 
-def _get_cached_analysis(company_id: int, max_age_seconds: int = 300) -> Optional[str]:
+def _get_cached_analysis(company_id: UUID, max_age_seconds: int = 300) -> Optional[str]:
     """Retrieve cached analysis if it's recent enough."""
     cache_key = f"{_ANALYSIS_CACHE_PREFIX}{company_id}"
     cached_data = _redis.get(cache_key)

@@ -16,6 +16,8 @@ import SearchBar from "../components/SearchBar";
 import { useDashboardData } from "../hooks/useDashboardData";
 import { useAIAnalysis } from "../hooks/useAIAnalysis";
 import { fetchCompany } from "../hooks/api";
+import type { Company } from "../types";
+
 
 
 
@@ -34,8 +36,8 @@ const Dashboard: React.FC = () => {
   
   useEffect(() => {
     fetchCompany()
-      .then((c) => setCompanyId(c.id))
-      .catch((err) => console.error("Failed to load company", err));
+      .then((c: Company) => setCompanyId(c.id))
+      .catch((err: unknown) => console.error("Failed to load company", err));
   }, []);
 
 

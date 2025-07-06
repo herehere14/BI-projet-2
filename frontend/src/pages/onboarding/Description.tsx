@@ -91,8 +91,8 @@ export default function Description() {
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
         <h4 className="font-semibold text-blue-900 mb-2">Setup Summary</h4>
         <div className="space-y-1 text-sm text-blue-800">
-          <p>• Industry: <span className="font-medium">{state.biz_type?.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}</span></p>
-          {state.data_sources?.length > 0 && (
+        <p>• Industry: <span className="font-medium">{state.biz_type?.replace('-', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}</span></p>
+        {state.data_sources?.length > 0 && (
             <p>• Connected Sources: <span className="font-medium">{state.data_sources.length} integrations</span></p>
           )}
           {state.snowflake_dsn && (

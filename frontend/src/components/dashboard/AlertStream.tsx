@@ -20,14 +20,14 @@ const AlertStream: React.FC<AlertStreamProps> = ({ alerts: initialAlerts = [], o
     
     ws.onmessage = (event) => {
       const newAlert: Alert = JSON.parse(event.data);
-      setAlerts(prev => [newAlert, ...prev.slice(0, 49)]);
-      
+      setAlerts((prev) => [newAlert, ...prev.slice(0, 49)]);
+
       // Flash new alert
-      setFlashingAlerts(prev => new Set(prev).add(newAlert.id));
+      setFlashingAlerts((prev) => new Set(prev).add(newAlert.id!));
       setTimeout(() => {
-        setFlashingAlerts(prev => {
+        setFlashingAlerts((prev) => {
           const next = new Set(prev);
-          next.delete(newAlert.id);
+          next.delete(newAlert.id!);
           return next;
         });
       }, 500);
@@ -95,7 +95,7 @@ const AlertStream: React.FC<AlertStreamProps> = ({ alerts: initialAlerts = [], o
               className={`
                 p-3 border-b border-border cursor-pointer
                 hover:bg-popover transition-colors
-                ${flashingAlerts.has(alert.id) ? 'flash' : ''}
+                ${flashingAlerts.has(alert.id!) ? 'flash' : ''}
               `}
             >
               <div className="flex items-start gap-2">
@@ -107,7 +107,7 @@ const AlertStream: React.FC<AlertStreamProps> = ({ alerts: initialAlerts = [], o
                       {alert.title}
                     </h3>
                     <span className="text-[9px] text-muted-foreground font-mono">
-                      {formatTime(alert.timestamp)}
+                      {formatTime(alert.ts)}
                     </span>
                   </div>
                   
@@ -116,7 +116,7 @@ const AlertStream: React.FC<AlertStreamProps> = ({ alerts: initialAlerts = [], o
                   </p>
                   
                   {/* Metrics */}
-                  {alert.metrics.length > 0 && (
+                  {alert.metrics && alert.metrics.length > 0 && (
                     <div className="flex flex-wrap gap-3 mb-2 text-[10px]">
                       {alert.metrics.map((metric, i) => (
                         <span key={i} className="text-warning font-medium">
@@ -140,7 +140,7 @@ const AlertStream: React.FC<AlertStreamProps> = ({ alerts: initialAlerts = [], o
                           key={action.id}
                           onClick={(e) => {
                             e.stopPropagation();
-                            onAction?.(action.type, alert.id);
+                            onAction?.(action.type, alert.id!);
                           }}
                           className={`
                             ${getActionStyle(action.style)}

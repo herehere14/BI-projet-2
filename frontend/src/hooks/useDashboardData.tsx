@@ -19,7 +19,7 @@ export const useDashboardData = (companyId?: string) => {
     queryFn: async (): Promise<DashboardData> => {
       try {
         const [dashboardResponse, alertsResponse] = await Promise.all([
-          fetchDashboard(companyId),
+          fetchDashboard(companyId!),
           fetchAlerts()
         ]);
 

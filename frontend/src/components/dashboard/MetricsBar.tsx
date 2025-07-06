@@ -128,11 +128,11 @@ const MetricsBar: React.FC<MetricsBarProps> = ({ metrics = [], isLoading }) => {
           
           {/* Mini sparkline */}
           <div className="h-5 -mx-1">
-            <MiniSparkline 
-              data={metric.sparkline} 
-              color={getChartColor(metric)}
-              showArea={metric.status === 'critical' || metric.status === 'warning'}
-            />
+          <MiniSparkline
+                data={metric.sparkline}
+                color={getChartColor(metric)}
+                showGradient={metric.status === 'critical' || metric.status === 'warning'}
+              />
           </div>
 
           {/* Special indicators */}

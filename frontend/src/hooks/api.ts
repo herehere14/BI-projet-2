@@ -61,7 +61,7 @@ export const registerUser = async (body: {
  *  Company
  * ------------------------------------------------------------------ */
 
-export const fetchDashboard = async (companyId: string): Promise<KPITile[]> => {
+export const fetchCompany = async (): Promise<Company> => {
   const res = await fetch(`${API_BASE}/company`, {
     headers: authHeaders(),
   });
@@ -92,7 +92,7 @@ export const loginUser = async (body: {
  *  Dashboard + alerts
  * ------------------------------------------------------------------ */
 
-export const fetchDashboard = async (companyId = 1): Promise<KPITile[]> => {
+export const fetchDashboard = async (companyId: string): Promise<KPITile[]> => {
   const res = await fetch(`${API_BASE}/dashboard?company_id=${companyId}`, {
     headers: authHeaders(),
   });
