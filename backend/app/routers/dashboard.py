@@ -22,9 +22,26 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 async def _has_target_column(db: AsyncSession) -> bool:
     """Return True if the KPI table has a ``target`` column."""
 
-    def check(sync_conn):
-        insp = inspect(sync_conn)
+    def check(sync_session):
+        """Check if the ``kpi`` table has a ``target`` column using the
+        synchronous connection bound to the session."""
+
+        connection = sync_session.connection()
+        insp = inspect(connection)
         return "target" in [c["name"] for c in insp.get_columns("kpi")]
+
+    return await db.run_sync(check)
+
+async def _has_type_column(db: AsyncSession) -> bool:
+    """Return True if the KPI table has a ``type`` column."""
+
+    def check(sync_session):
+        """Check if the ``kpi`` table has a ``type`` column using the
+        synchronous connection bound to the session."""
+
+        connection = sync_session.connection()
+        insp = inspect(connection)
+        return "type" in [c["name"] for c in insp.get_columns("kpi")]
 
     return await db.run_sync(check)
 
@@ -47,22 +64,25 @@ async def dashboard_summary(
     )
 
     has_target = await _has_target_column(db)
+    has_type = await _has_type_column(db)
+
     stmt = select(Kpi).join(
         subq, (Kpi.metric == subq.c.metric) & (Kpi.as_of == subq.c.latest)
     )
-    if not has_target:
-        stmt = stmt.options(
-            load_only(
-                Kpi.id,
-                Kpi.company_id,
-                Kpi.metric,
-                Kpi.value,
-                Kpi.as_of,
-                Kpi.type,
-                Kpi.unit,
-                Kpi.description,
-            )
-        )
+    if not (has_target and has_type):
+        columns = [
+            Kpi.id,
+            Kpi.company_id,
+            Kpi.metric,
+            Kpi.value,
+            Kpi.as_of,
+        ]
+        if has_target:
+            columns.append(Kpi.target)
+        if has_type:
+            columns.append(Kpi.type)
+        columns.extend([Kpi.unit, Kpi.description])
+        stmt = stmt.options(load_only(*columns))
     result = await db.execute(stmt)
     rows = result.scalars().all()
 
@@ -78,19 +98,20 @@ async def dashboard_summary(
             .order_by(Kpi.as_of.desc())
             .limit(1)
         )
-        if not has_target:
-            prev_stmt = prev_stmt.options(
-                load_only(
-                    Kpi.id,
-                    Kpi.company_id,
-                    Kpi.metric,
-                    Kpi.value,
-                    Kpi.as_of,
-                    Kpi.type,
-                    Kpi.unit,
-                    Kpi.description,
-                )
-            )
+        if not (has_target and has_type):
+            columns = [
+                Kpi.id,
+                Kpi.company_id,
+                Kpi.metric,
+                Kpi.value,
+                Kpi.as_of,
+            ]
+            if has_target:
+                columns.append(Kpi.target)
+            if has_type:
+                columns.append(Kpi.type)
+            columns.extend([Kpi.unit, Kpi.description])
+            prev_stmt = prev_stmt.options(load_only(*columns))
         prev_result = await db.execute(prev_stmt)
         prev = prev_result.scalars().first()
 
@@ -126,21 +147,24 @@ async def latest_kpis(
     
     has_target = await _has_target_column(db)
 
+    has_type = await _has_type_column(db)
+
     # Build query
     stmt = select(Kpi).where(Kpi.company_id == company_id)
-    if not has_target:
-        stmt = stmt.options(
-            load_only(
-                Kpi.id,
-                Kpi.company_id,
-                Kpi.metric,
-                Kpi.value,
-                Kpi.as_of,
-                Kpi.type,
-                Kpi.unit,
-                Kpi.description,
-            )
-        )    
+    if not (has_target and has_type):
+        columns = [
+            Kpi.id,
+            Kpi.company_id,
+            Kpi.metric,
+            Kpi.value,
+            Kpi.as_of,
+        ]
+        if has_target:
+            columns.append(Kpi.target)
+        if has_type:
+            columns.append(Kpi.type)
+        columns.extend([Kpi.unit, Kpi.description])
+        stmt = stmt.options(load_only(*columns))   
     # Apply metric filter if provided
     if metrics:
         stmt = stmt.where(Kpi.metric.in_(metrics))
@@ -169,19 +193,21 @@ async def latest_kpis(
             .order_by(Kpi.as_of.desc())
             .limit(1)
         )
-        if not has_target:
-            prev_stmt = prev_stmt.options(
-                load_only(
-                    Kpi.id,
-                    Kpi.company_id,
-                    Kpi.metric,
-                    Kpi.value,
-                    Kpi.as_of,
-                    Kpi.type,
-                    Kpi.unit,
-                    Kpi.description,
-                )
-            )
+        if not (has_target and has_type):
+            columns = [
+                Kpi.id,
+                Kpi.company_id,
+                Kpi.metric,
+                Kpi.value,
+                Kpi.as_of,
+            ]
+            if has_target:
+                columns.append(Kpi.target)
+            if has_type:
+                columns.append(Kpi.type)
+            columns.extend([Kpi.unit, Kpi.description])
+            prev_stmt = prev_stmt.options(load_only(*columns))
+            
         prev_result = await db.execute(prev_stmt)
         previous = prev_result.scalars().first()
         
