@@ -4,6 +4,9 @@ class CompanyCreate(BaseModel):
     description: str
     snowflake_dsn: str | None = None
 
+from uuid import UUID
+
+
 class CompanyOut(CompanyCreate):
-    id: str
+    id: UUID
     class Config: orm_mode = True
