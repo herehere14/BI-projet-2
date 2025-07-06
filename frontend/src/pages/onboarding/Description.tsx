@@ -2,6 +2,8 @@
 
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { API_BASE } from "../../hooks/api";
+
 
 export default function Description() {
   const { state } = useLocation();
@@ -19,7 +21,7 @@ export default function Description() {
   async function finish() {
     setIsSubmitting(true);
     try {
-      await fetch("/company", {
+      await fetch(`${API_BASE}/company`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
