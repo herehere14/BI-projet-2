@@ -46,6 +46,18 @@ async def _has_type_column(db: AsyncSession) -> bool:
     return await db.run_sync(check)
 
 
+async def _has_description_column(db: AsyncSession) -> bool:
+    """Return True if the KPI table has a ``description`` column."""
+
+    def check(sync_session):
+        """Check if the ``kpi`` table has a ``description`` column using the
+        synchronous connection bound to the session."""
+
+        connection = sync_session.connection()
+        insp = inspect(connection)
+        return "description" in [c["name"] for c in insp.get_columns("kpi")]
+
+    return await db.run_sync(check)
 
 
 
@@ -64,7 +76,19 @@ async def dashboard_summary(
     )
 
     has_target = await _has_target_column(db)
-    has_type = await _has_type_column(db)
+    try:
+        has_type = await _has_type_column(db)
+    except Exception:  # pragma: no cover - defensive fallback
+        logger.warning("Failed to detect 'type' column, assuming absent")
+        has_type = False
+    try:
+        has_description = await _has_description_column(db)
+    except Exception:  # pragma: no cover - defensive fallback
+        logger.warning("Failed to detect 'description' column, assuming absent")
+        has_description = False
+
+    has_description = await _has_description_column(db)
+
 
     stmt = select(Kpi).join(
         subq, (Kpi.metric == subq.c.metric) & (Kpi.as_of == subq.c.latest)
@@ -81,7 +105,11 @@ async def dashboard_summary(
             columns.append(Kpi.target)
         if has_type:
             columns.append(Kpi.type)
-        columns.extend([Kpi.unit, Kpi.description])
+
+        columns.append(Kpi.unit)
+        if has_description:
+            columns.append(Kpi.description)
+
         stmt = stmt.options(load_only(*columns))
     result = await db.execute(stmt)
     rows = result.scalars().all()
@@ -110,7 +138,11 @@ async def dashboard_summary(
                 columns.append(Kpi.target)
             if has_type:
                 columns.append(Kpi.type)
-            columns.extend([Kpi.unit, Kpi.description])
+
+            columns.append(Kpi.unit)
+            if has_description:
+                columns.append(Kpi.description)
+
             prev_stmt = prev_stmt.options(load_only(*columns))
         prev_result = await db.execute(prev_stmt)
         prev = prev_result.scalars().first()
@@ -147,7 +179,7 @@ async def latest_kpis(
     
     has_target = await _has_target_column(db)
 
-    has_type = await _has_type_column(db)
+    has_description = await _has_description_column(db)
 
     # Build query
     stmt = select(Kpi).where(Kpi.company_id == company_id)
@@ -163,8 +195,11 @@ async def latest_kpis(
             columns.append(Kpi.target)
         if has_type:
             columns.append(Kpi.type)
-        columns.extend([Kpi.unit, Kpi.description])
-        stmt = stmt.options(load_only(*columns))   
+
+        columns.append(Kpi.unit)
+        if has_description:
+            columns.append(Kpi.description)
+        stmt = stmt.options(load_only(*columns)) 
     # Apply metric filter if provided
     if metrics:
         stmt = stmt.where(Kpi.metric.in_(metrics))
@@ -205,9 +240,13 @@ async def latest_kpis(
                 columns.append(Kpi.target)
             if has_type:
                 columns.append(Kpi.type)
-            columns.extend([Kpi.unit, Kpi.description])
+
+            columns.append(Kpi.unit)
+            if has_description:
+                columns.append(Kpi.description)
+
             prev_stmt = prev_stmt.options(load_only(*columns))
-            
+
         prev_result = await db.execute(prev_stmt)
         previous = prev_result.scalars().first()
         

@@ -104,6 +104,9 @@ async def init_db() -> None:
                         "ALTER TABLE kpi ADD COLUMN as_of TIMESTAMP WITH TIME ZONE"
                     )
                 )
+                
+            if "description" not in kpi_columns:
+                sync_conn.execute(text("ALTER TABLE kpi ADD COLUMN description TEXT"))
 
         await conn.run_sync(_check_columns)
 
