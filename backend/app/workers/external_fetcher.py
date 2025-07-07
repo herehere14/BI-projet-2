@@ -19,7 +19,8 @@ from sqlalchemy import and_, func
 
 from app.core.celery_app import celery_app
 from app.core.settings import settings
-from app.core.database import get_engine, News  # existing News ORM
+from app.core.database import get_engine
+from app.models import News
 
 # ──────────────────────────────────────────────────────────
 openai.api_key = settings.OPENAI_API_KEY

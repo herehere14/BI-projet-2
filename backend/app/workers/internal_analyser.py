@@ -12,7 +12,8 @@ from sqlalchemy import and_
 
 from app.core.celery_app import celery_app
 from app.core.settings import settings
-from app.core.database import get_engine, Kpi, Company, News
+from app.core.database import get_engine
+from app.models import Kpi, Company, News
 from app.services.ai import publish_ai_answer
 
 openai.api_key = settings.OPENAI_API_KEY
