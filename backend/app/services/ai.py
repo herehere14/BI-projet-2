@@ -5,6 +5,8 @@ the finished AI answer over Redis so dashboard WebSockets can pick it up.
 import json
 import redis
 import logging
+import asyncio
+
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, asdict
@@ -136,8 +138,8 @@ async def ask_ai_query(query: str, company_id: UUID | None = None) -> Dict[str, 
         if company_id is not None:
             from app.workers.internal_analyser import generate_report
 
-            summary = generate_report(str(company_id))
-
+            summary = await asyncio.to_thread(generate_report, str(company_id))
+            
         else:
             import openai
 
