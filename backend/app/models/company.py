@@ -19,6 +19,9 @@ class Company(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     owner_id = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=False)
 
+    name = Column(String(256), nullable=True)
+
+
     biz_type = Column(String(128), nullable=True)
     description = Column(Text, nullable=True)
 
@@ -34,4 +37,5 @@ class Company(Base):
     # Convenience helpers
     # --------------------------------------------------------------------- #
     def __repr__(self) -> str:  # pragma: no cover
-        return f"<Company {self.id} ({self.biz_type or 'n/a'})>"
+        display = self.name or self.biz_type or "n/a"
+        return f"<Company {self.id} ({display})>"

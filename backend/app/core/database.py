@@ -108,6 +108,11 @@ async def init_db() -> None:
             if "description" not in kpi_columns:
                 sync_conn.execute(text("ALTER TABLE kpi ADD COLUMN description TEXT"))
 
+            # Ensure company.name exists for older databases
+            company_columns = [c["name"] for c in inspector.get_columns("company")]
+            if "name" not in company_columns:
+                sync_conn.execute(text("ALTER TABLE company ADD COLUMN name VARCHAR(256)"))
+
         await conn.run_sync(_check_columns)
 
 async def shutdown() -> None:

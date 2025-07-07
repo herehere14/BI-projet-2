@@ -120,6 +120,8 @@ export interface AskAIResponse {
 
 export interface Company {
   id: string;
+  name?: string;
+
   biz_type: string;
   description: string;
   snowflake_dsn?: string | null;
