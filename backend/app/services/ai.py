@@ -5,7 +5,6 @@ the finished AI answer over Redis so dashboard WebSockets can pick it up.
 import json
 import redis
 import logging
-import asyncio
 
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
@@ -139,12 +138,13 @@ async def ask_ai_query(query: str, company_id: UUID | None = None) -> Dict[str, 
             from app.workers.internal_analyser import generate_report
 
             from app.core.database import engine
-            from app.workers.internal_analyser import generate_report
-
-            # Run the sync report generator using the async engine's run_sync
-            # helper which provides a synchronous connection, avoiding
-            # "greenlet_spawn" errors.
-            summary = await engine.run_sync(generate_report, str(company_id))
+            # Run the sync report generator using a temporary connection.
+            # ``AsyncEngine.run_sync`` is only available in SQLAlchemy 2.x, so
+            # for wider compatibility we obtain a connection explicitly and
+            # call ``run_sync`` on it. This avoids ``greenlet_spawn`` errors
+            # when ``generate_report`` performs synchronous ORM operations.
+            async with engine.connect() as conn:
+                summary = await conn.run_sync(generate_report, str(company_id))
 
         else:
             import openai
