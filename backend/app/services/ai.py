@@ -138,8 +138,14 @@ async def ask_ai_query(query: str, company_id: UUID | None = None) -> Dict[str, 
         if company_id is not None:
             from app.workers.internal_analyser import generate_report
 
-            summary = await asyncio.to_thread(generate_report, str(company_id))
-            
+            from app.core.database import engine
+            from app.workers.internal_analyser import generate_report
+
+            # Run the sync report generator using the async engine's run_sync
+            # helper which provides a synchronous connection, avoiding
+            # "greenlet_spawn" errors.
+            summary = await engine.run_sync(generate_report, str(company_id))
+
         else:
             import openai
 

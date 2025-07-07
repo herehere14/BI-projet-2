@@ -181,13 +181,18 @@ Please check back shortly for AI-powered insights."""
     publish_ai_answer(company_uuid, enhanced_answer)
 
 
-def generate_report(company_id: str) -> str:
-    """Run the KPI analysis synchronously and return the AI text."""
-    engine = get_engine()
+def generate_report(conn, company_id: str) -> str:
+    """Run the KPI analysis synchronously and return the AI text.
+
+    This function is designed to be executed via ``AsyncEngine.run_sync`` which
+    passes in a synchronous connection.  ``conn`` can therefore be used to
+    create a regular ``Session`` without triggering the ``greenlet_spawn``
+    error.
+    """
 
     company_uuid = uuid.UUID(company_id)
 
-    with Session(engine) as sess:
+    with Session(conn) as sess:
         company: Company = sess.query(Company).get(company_uuid)
 
         recent_kpis = (
