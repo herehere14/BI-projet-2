@@ -87,7 +87,6 @@ async def dashboard_summary(
         logger.warning("Failed to detect 'description' column, assuming absent")
         has_description = False
 
-    has_description = await _has_description_column(db)
 
 
     stmt = select(Kpi).join(
@@ -178,6 +177,8 @@ async def latest_kpis(
         raise HTTPException(status_code=404, detail=f"Company {company_id} not found")
     
     has_target = await _has_target_column(db)
+    has_type = await _has_type_column(db)
+
 
     has_description = await _has_description_column(db)
 

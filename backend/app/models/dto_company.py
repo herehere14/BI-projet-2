@@ -11,4 +11,4 @@ from uuid import UUID
 
 class CompanyOut(CompanyCreate):
     id: UUID
-    class Config: orm_mode = True
+    model_config = {"from_attributes": True}
