@@ -1,8 +1,13 @@
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
-import pandas as pd, io, json, datetime as dt
+import io
+import pandas as pd
+import datetime as dt
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
 from ..core.database import get_db
 from ..models.company import Company
+from ..models.kpi import Kpi, KpiType
 from .auth import current_user_id
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
@@ -25,17 +30,26 @@ async def ingest_file(
         raise HTTPException(415, "Unsupported filetype")
 
     # Very simple mapping: expect KPI columns
-    required = {"label", "value", "delta_pct"}
+    required = {"label", "value"}
     if not required.issubset(df.columns):
         raise HTTPException(400, f"File must contain columns: {required}")
+
+    company_id = await db.scalar(
+        select(Company.id).where(Company.owner_id == user_id)
+    )
+    if not company_id:
+        raise HTTPException(status_code=404, detail="Company not found")
 
     now = dt.datetime.utcnow()
     for _, row in df.iterrows():
         await db.execute(
-            "INSERT INTO kpi_snapshot (captured_at,label,value,delta_pct,spark,owner_id)"
-            " VALUES (:ts,:label,:val,:pct,'[]',:oid)",
-            {"ts": now, "label": row.label, "val": row.value,
-             "pct": row.delta_pct, "oid": user_id},
+            Kpi.__table__.insert().values(
+                company_id=company_id,
+                metric=row.label,
+                value=row.value,
+                as_of=now,
+                type=KpiType.OPERATIONAL,
+            )
         )
     await db.commit()
     return {"rows": len(df)}

@@ -5,7 +5,7 @@ import openai
 import json
 import uuid
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session, load_only
 from sqlalchemy import and_
@@ -39,6 +39,44 @@ def _recent_news(sess: Session, hours: int = 48, limit: int = 5) -> List[str]:
     return items
 
 
+def _fetch_kpi_data(
+    sess: Session, company_uuid: uuid.UUID, days: int = 30
+) -> Tuple[List[Kpi], Dict[str, List[Dict[str, Any]]], datetime]:
+    """Return recent KPIs and trend data for the given company."""
+
+    recent_kpis = (
+        sess.query(Kpi)
+        .options(load_only(Kpi.metric, Kpi.value, Kpi.as_of))
+        .filter_by(company_id=company_uuid)
+        .order_by(Kpi.as_of.desc())
+        .limit(50)
+        .all()
+    )
+
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    historical_kpis = (
+        sess.query(Kpi)
+        .options(load_only(Kpi.metric, Kpi.value, Kpi.as_of))
+        .filter(and_(Kpi.company_id == company_uuid, Kpi.as_of >= cutoff))
+        .order_by(Kpi.as_of.desc())
+        .all()
+    )
+
+    kpi_trends: Dict[str, List[Dict[str, Any]]] = {}
+    for kpi in historical_kpis:
+        kpi_trends.setdefault(kpi.metric, []).append(
+            {
+                "value": kpi.value,
+                "date": kpi.as_of.strftime("%Y-%m-%d")
+                if hasattr(kpi.as_of, "strftime")
+                else str(kpi.as_of),
+            }
+        )
+
+    return recent_kpis, kpi_trends, cutoff
+
+
+
 @celery_app.task(name="app.workers.internal_analyser.analyse")
 def analyse(company_id: str) -> None:
     engine = get_engine()
@@ -48,44 +86,10 @@ def analyse(company_id: str) -> None:
 
     with Session(engine) as sess:
         company: Company = sess.query(Company).get(company_uuid)
-        
-        # Get recent KPIs
-        recent_kpis = (
-            sess.query(Kpi)
-            .options(load_only(Kpi.metric, Kpi.value, Kpi.as_of))
-            
-            .filter_by(company_id=company_uuid)
-            .order_by(Kpi.as_of.desc())
-            .limit(50)
-            .all()
-        )
-        
-        # Get historical KPIs for trend analysis (last 30 days)
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-        historical_kpis = (
-            sess.query(Kpi)
-            .options(load_only(Kpi.metric, Kpi.value, Kpi.as_of))
 
-            .filter(
-                and_(
-                    Kpi.company_id == company_uuid,
-                    Kpi.as_of >= thirty_days_ago
-                )
-            )
-            .order_by(Kpi.as_of.desc())
-            .all()
-        )
-    
-    # ── Prepare structured KPI data ─────────────────────────────────────────
-    # Group KPIs by metric for trend analysis
-    kpi_trends = {}
-    for kpi in historical_kpis:
-        if kpi.metric not in kpi_trends:
-            kpi_trends[kpi.metric] = []
-        kpi_trends[kpi.metric].append({
-            'value': kpi.value,
-            'date': kpi.as_of.strftime('%Y-%m-%d') if hasattr(kpi.as_of, 'strftime') else str(kpi.as_of)
-        })
+        recent_kpis, kpi_trends, thirty_days_ago = _fetch_kpi_data(sess, company_uuid)
+
+
     
     # Format recent KPIs with context
     recent_kpi_dict = {}
@@ -195,49 +199,10 @@ def generate_report(conn, company_id: str) -> str:
     with Session(conn) as sess:
         company: Company = sess.query(Company).get(company_uuid)
 
-        recent_kpis = (
-            sess.query(Kpi)
-            .options(load_only(Kpi.metric, Kpi.value, Kpi.as_of))
 
-            .filter_by(company_id=company_uuid)
-            .order_by(Kpi.as_of.desc())
-            .limit(50)
-            .all()
-        )
+        recent_kpis, kpi_trends, thirty_days_ago = _fetch_kpi_data(sess, company_uuid)
 
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-        historical_kpis = (
-            sess.query(Kpi)
 
-            .options(load_only(Kpi.metric, Kpi.value, Kpi.as_of))
-
-            .filter(
-                and_(Kpi.company_id == company_uuid, Kpi.as_of >= thirty_days_ago)
-            )
-            .order_by(Kpi.as_of.desc())
-            .all()
-        )
-
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-        historical_kpis = (
-            sess.query(Kpi)
-            .options(load_only(Kpi.metric, Kpi.value, Kpi.as_of))
-
-            .filter(
-                and_(Kpi.company_id == company_id, Kpi.as_of >= thirty_days_ago)
-            )
-            .order_by(Kpi.as_of.desc())
-            .all()
-        )
-
-    kpi_trends: Dict[str, List[Dict[str, Any]]] = {}
-    for kpi in historical_kpis:
-        kpi_trends.setdefault(kpi.metric, []).append(
-            {
-                "value": kpi.value,
-                "date": kpi.as_of.strftime("%Y-%m-%d") if hasattr(kpi.as_of, "strftime") else str(kpi.as_of),
-            }
-        )
 
     recent_kpi_dict = {k.metric: k.value for k in recent_kpis[:20]}
 

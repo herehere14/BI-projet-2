@@ -9,6 +9,8 @@ from sqlalchemy.dialects.postgresql import UUID
 
 # ⬇️  FIXED: use relative import so it resolves inside the “backend.app” package
 from ..core.database import Base
+import asyncio
+from app.services.ai import ask_ai_sync
 
 
 class Company(Base):
