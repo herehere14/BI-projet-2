@@ -1,6 +1,5 @@
-//useAuth.tsx
+import { useContext } from "react";
+import { AuthContext } from "../context/AuthProvider";
 
-export const useAuth = () => {
-    return { user: { name: "Sarah C." }, isAuthenticated: true };
-  };
-  
+// Small convenience hook to access the authentication context
+export const useAuth = () => useContext(AuthContext);

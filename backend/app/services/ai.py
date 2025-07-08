@@ -330,9 +330,43 @@ def _get_task_priority(company_id: UUID) -> int:
     Determine task priority based on company tier or other factors.
     Higher number = higher priority (Celery convention).
     """
-    # TODO: Integrate with your company tier/subscription system
-    # For now, return default priority
-    return 5  # Medium priority (scale: 0-10)
+    # In a full application this would likely query a subscription table
+    # or similar persistent store.  To keep the service self contained we
+    # rely on optional environment variables so deployments can configure
+    # important customers without touching the code base.
+    #
+    # ``AI_TASK_PRIORITY_MAP`` can contain a JSON object mapping company
+    # UUIDs to a numeric priority.  ``AI_PRIORITY_COMPANIES`` allows a
+    # simpler comma separated list of UUIDs which will all receive a high
+    # priority (``9``).
+    import os
+
+    # 1) Explicit mapping via JSON env var -------------------------------
+    mapping = os.getenv("AI_TASK_PRIORITY_MAP")
+    if mapping:
+        try:
+            data = json.loads(mapping)
+            prio = data.get(str(company_id))
+            if prio is not None:
+                prio_int = int(prio)
+                if 0 <= prio_int <= 10:
+                    return prio_int
+        except (json.JSONDecodeError, ValueError):
+            # Ignore malformed data and fall back to defaults
+            pass
+
+    # 2) Simple list of "premium" companies -----------------------------
+    premium = os.getenv("AI_PRIORITY_COMPANIES", "")
+    if premium:
+        ids = [cid.strip() for cid in premium.split(";") if cid.strip()]
+        if str(company_id) in ids:
+            return 9
+
+    # 3) Default priority ------------------------------------------------
+    try:
+        return int(os.getenv("AI_TASK_DEFAULT_PRIORITY", "5"))
+    except ValueError:
+        return 5
 
 
 # ─────────────────────────────────────────────────────────────
