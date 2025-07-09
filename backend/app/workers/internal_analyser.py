@@ -1,7 +1,7 @@
 """
 Turns latest KPIs into plain-English insights via OpenAI.
 """
-import openai
+from openai import OpenAI
 import json
 import uuid
 
@@ -16,7 +16,7 @@ from app.core.database import get_engine
 from app.models import Kpi, Company, News
 from app.services.ai import publish_ai_answer
 
-openai.api_key = settings.OPENAI_API_KEY
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 def _recent_news(sess: Session, hours: int = 48, limit: int = 5) -> List[str]:
     """Return recent news headlines and summaries."""
@@ -144,7 +144,7 @@ Prioritize insights that could have the greatest positive impact on the business
     
     # ── Ask OpenAI with enhanced parameters ─────────────────────────────────────────
     try:
-        resp = openai.ChatCompletion.create(
+        resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -232,7 +232,7 @@ TREND ANALYSIS:
 Provide a short summary of the most important insights."""
 
     try:
-        resp = openai.ChatCompletion.create(
+        resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             max_tokens=300,

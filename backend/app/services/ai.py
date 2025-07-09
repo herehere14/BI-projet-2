@@ -147,12 +147,12 @@ async def ask_ai_query(query: str, company_id: UUID | None = None) -> Dict[str, 
                 summary = await conn.run_sync(generate_report, str(company_id))
 
         else:
-            import openai
+            from openai import AsyncOpenAI
 
             if settings.OPENAI_API_KEY:
-                openai.api_key = settings.OPENAI_API_KEY
+                client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
-                resp = await openai.ChatCompletion.acreate(
+                resp = await client.chat.completions.create(
                     model=settings.OPENAI_MODEL_4O,
                     messages=[
                         {"role": "system", "content": "You are a helpful business analyst."},

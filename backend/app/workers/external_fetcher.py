@@ -12,6 +12,8 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Optional
 import hashlib
+from openai import OpenAI
+
 
 import openai
 from sqlalchemy.orm import Session
@@ -23,7 +25,7 @@ from app.core.database import get_engine
 from app.models import News
 
 # ──────────────────────────────────────────────────────────
-openai.api_key = settings.OPENAI_API_KEY
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
 _MODEL = "gpt-4o-mini"
 _ITEMS = 5  # how many intel bullets to request
 _TEMPERATURE = 0.3
@@ -96,7 +98,7 @@ def _generate_content_hash(title: str, summary: str) -> str:
 def _ask_openai(retry: int = 0) -> List[Dict]:
     """Call ChatGPT and parse the JSON array with retry logic."""
     try:
-        resp = openai.ChatCompletion.create(
+        resp = client.chat.completions.create(
             model=_MODEL,
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
