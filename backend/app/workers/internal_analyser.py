@@ -85,7 +85,7 @@ def analyse(company_id: str) -> None:
     company_uuid = uuid.UUID(company_id)
 
     with Session(engine) as sess:
-        company: Company = sess.query(Company).get(company_uuid)
+        company: Company = sess.get(Company, company_uuid)
 
         recent_kpis, kpi_trends, thirty_days_ago = _fetch_kpi_data(sess, company_uuid)
 
@@ -197,7 +197,7 @@ def generate_report(conn, company_id: str) -> str:
     company_uuid = uuid.UUID(company_id)
 
     with Session(conn) as sess:
-        company: Company = sess.query(Company).get(company_uuid)
+        company: Company = sess.get(Company, company_uuid)
 
 
         recent_kpis, kpi_trends, thirty_days_ago = _fetch_kpi_data(sess, company_uuid)
