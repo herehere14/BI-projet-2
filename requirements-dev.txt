@@ -1,0 +1,14 @@
+
++8
+-0
+
+# BI-project
+BI project
+
+## Development setup
+
+Install development dependencies with:
+
+```bash
+pip install -r requirements-dev.txt
+```

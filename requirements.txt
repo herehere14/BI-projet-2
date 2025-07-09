@@ -16,3 +16,5 @@ email-validator==2.1.0.post1    # nicer email validation helper
 bcrypt==3.2.2        # last version that still exposes __about__.__version__
 # -- or --
 bcrypt<4.1           # any 4.0.x also still works
+snowflake-connector-python>=3.10
+
